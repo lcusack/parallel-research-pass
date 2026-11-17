@@ -24,16 +24,17 @@ async function boundedJson(response: Response) {
   return JSON.parse(new TextDecoder().decode(all));
 }
 
-export async function researchPayment(secret: `0x${string}`, question: string): Promise<PaidResult> {
+export async function researchPayment(secret: `0x${string}`, question: string, rawFetch: typeof fetch = globalThis.fetch): Promise<PaidResult> {
   const account = privateKeyToAccount(secret);
   const client = Mppx.create({
-    polyfill: false, maxPaymentRetries: 1,
+    polyfill: false, maxPaymentRetries: 1, fetch: rawFetch,
     methods: [tempo.charge({ account, expectedChainId: 4217, allowedChainIds: [4217], currencies: [usdc], maxAtomicAmount: '10000', feeToken: usdc, autoSwap: false })],
   });
   const response = await client.fetch(endpoint, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ input: question, reasoning: { effort: 'low' } }),
-    redirect: 'error', signal: AbortSignal.timeout(75000),
+    // Workers supports manual/follow, not redirect:error. Never forward a payment to a redirect.
+    redirect: 'manual', signal: AbortSignal.timeout(75000),
   });
   const receipt = response.headers.get('payment-receipt');
   if (response.status !== 200 || !receipt) { await response.body?.cancel(); throw new Error('No confirmed provider result'); }

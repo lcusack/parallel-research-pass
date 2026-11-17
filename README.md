@@ -91,7 +91,7 @@ This reference has no administrative UI, scheduled state deletion, automatic rec
 
 ## Validation and sources
 
-Twenty automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, and CLI payment constraints. They do not spend funds.
+Twenty-two automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
 
 The original local flow completed a real paid query on November 17, 2026. The allowance went from 10 to 9, and MCP replay returned the saved answer without another payment. The wallet delta was $0.010198: a $0.01 service charge plus network fees. Transaction reference: `0x1e0efee8b14c36625e8d569c872a36d30b3b8205924677cecbd46f0357cc2953`. This does not yet validate the newly hosted deployment.
 
