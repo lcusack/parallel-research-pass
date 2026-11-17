@@ -9,7 +9,7 @@ test('unconfigured public backend fails closed before sessions, identity, or pay
   for (const path of ['/api/session', '/api/status', '/api/research']) {
     const response = await worker.fetch(new Request(origin + path), env);
     assert.equal(response.status, 503);
-    assert.equal((await response.json()).error, 'activation_pending');
+    assert.equal((await response.json() as { error: string }).error, 'activation_pending');
     assert.equal(response.headers.get('set-cookie'), null);
   }
 });
