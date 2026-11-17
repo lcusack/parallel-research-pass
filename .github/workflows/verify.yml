@@ -1,0 +1,25 @@
+name: Verify reference prototype
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.22.3'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run types:hosted
+      - run: npm run typecheck && npm run typecheck:hosted && npm test
+      - run: npx wrangler deploy --config hosted/wrangler.jsonc --dry-run --outdir /tmp/worker-build
+      - name: Test public MCP installation without app or wallet secrets
+        run: node sharing/check-install.mjs
