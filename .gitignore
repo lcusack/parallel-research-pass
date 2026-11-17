@@ -1,0 +1,12 @@
+node_modules/
+.env
+data/
+*.log
+.wrangler/
+.dev.vars
+.secrets.json
+hosted/worker-configuration.d.ts
+hosted/source.zip
+sharing/*.zip
+sharing/*.png
+node_modules/.cache/
