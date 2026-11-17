@@ -8,8 +8,6 @@ Code + MCP setup: https://github.com/lcusack/parallel-research-pass
 
 No invitation, provider API key, or user wallet is needed for the sponsored flow. It has a tiny $1 shared sponsorship budget, so the free allowance is subject to that pool lasting. Start with “What does Parallel.ai do? Cite its official website,” then open the receipt and check the remaining count. You can also install the MCP client and verify the same account in a second session to see the shared allowance.
 
-The local version has completed a real World ID → Parallel → MPP call and replayed its saved result without paying again. This is demo-funded: our backend enforces eligibility, while Parallel receives a standard paid MPP request. It is not yet a provider-native World ID offer.
+The hosted MCP flow has completed a real World ID → Parallel → MPP call: the allowance went from 10 to 9, and replaying that request returned its saved answer and receipt without paying again. This is demo-funded: our backend enforces eligibility, while Parallel receives a standard paid MPP request. It is not yet a provider-native World ID offer.
 
 Would love your feedback on where the identity check should sit in a production provider integration and whether this is the right reference flow for other services.
-
-<!-- Before sending: activate hosted secrets, fund the dedicated wallet within $1, complete a hosted end-to-end test, and remove this note. This message has not been sent. -->

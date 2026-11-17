@@ -4,7 +4,7 @@ Verify with World ID, ask Parallel a research question, and inspect its MPP paym
 
 **[Open the public demo](https://parallel-research-pass.foundry-world.workers.dev)** · **[90-second walkthrough](https://parallel-research-pass.foundry-world.workers.dev/walkthrough)** · **[MCP configuration](mcp.json)**
 
-No invitation, API key, or user wallet is needed for sponsored research. This is an independent reference prototype; the allowance is funded by this demo and is not a Parallel promotion. Hosted verification and sponsorship are enabled. The original local flow has completed a real World ID → Parallel → MPP transaction.
+No invitation, API key, or user wallet is needed for sponsored research. This is an independent reference prototype; the allowance is funded by this demo and is not a Parallel promotion. Hosted verification and sponsorship are enabled and have completed a real World ID → Parallel → MPP transaction through the MCP client.
 
 ## Try in a browser
 
@@ -51,7 +51,7 @@ Browser or agent
 
 The app is both an MPP identity-attestation issuer and the sponsor’s enforcement point. Parallel receives a standard paid MPP request; **Parallel does not consume the World ID attestation or grant the allowance itself**. Moving eligibility into a provider’s identity challenge is a next integration step.
 
-Selfie Check identifies an eligible account here; this prototype does not claim Orb-level uniqueness or require a fresh selfie for each answer. Signed proofs are checked for issuer, audience, expiry, type, and accepted authentication class. The real local test used an Orb account; Selfie Check acceptance is covered by signed-token and complete device-flow fixtures.
+Selfie Check identifies an eligible account here; this prototype does not claim Orb-level uniqueness or require a fresh selfie for each answer. Signed proofs are checked for issuer, audience, expiry, type, and accepted authentication class. The live tests used an Orb account; Selfie Check acceptance is covered by signed-token and complete device-flow fixtures.
 
 ## Budget and payment behavior
 
@@ -93,6 +93,8 @@ This reference has no administrative UI, scheduled state deletion, automatic rec
 
 Twenty-two automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
 
-The original local flow completed a real paid query on November 17, 2026. The allowance went from 10 to 9, and MCP replay returned the saved answer without another payment. The wallet delta was $0.010198: a $0.01 service charge plus network fees. Transaction reference: `0x1e0efee8b14c36625e8d569c872a36d30b3b8205924677cecbd46f0357cc2953`. This does not yet validate the newly hosted deployment.
+The public hosted MCP flow completed a real World ID approval and cited Parallel query on November 17, 2026. The allowance went from 10 to 9. The service charge was $0.01 and the confirmed Tempo network fee was $0.000178, for a total of $0.010178. Replaying the same request returned the identical saved answer and receipt with `reused: true`, kept 9 answers remaining, and left the sponsor balance unchanged at $0.979822. Transaction reference: `0x8d5e4473a7a9a2b5d5e038fe4295dd594acc944aba7e6f7d55f16c18ee1e6b23`.
+
+The walkthrough illustrates the earlier completed local test recorded in [LOCAL.md](LOCAL.md). The newly hosted deployment has now also passed the live flow above.
 
 References: [Parallel agentic payments](https://docs.parallel.ai/integrations/agentic-payments), [Parallel Responses](https://docs.parallel.ai/responses-api/responses-quickstart), [World ID OIDC](https://auth.world.org/docs/guides/oidc), [MPP World ID extension](https://github.com/wevm/mppx/pull/1271).
