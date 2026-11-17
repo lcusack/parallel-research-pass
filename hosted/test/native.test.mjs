@@ -158,6 +158,21 @@ test('native client refuses redirects and untrusted issuer challenges without se
   assert.equal(calls, 1, 'the prover never calls an untrusted issuer');
 });
 
+test('a nearly expired cached proof requires explicit renewal without silently starting a device attempt or payment', async () => {
+  const f = await fixture();
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const client = createNativePass({ origin, fetch: f.fetch, attestation: await f.sign({ iat: now - 3590, exp: now + 10 }) });
+    assert.equal((await client.allowance()).verified, true);
+    await assert.rejects(client.research('What does Parallel do?', randomUUID()), { code: 'verification_required' });
+    assert.deepEqual(f.counts(), { payments: 0, polls: 0, devices: 0 });
+    assert.equal((await client.verify()).status, 'approval_required', 'explicit approval can begin immediately, without a cached decline');
+    for (let i = 0; i < 60 && !(await client.check()).verified; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await client.check()).verified, true);
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
+
 test('public issuer is audience-pinned, rate-limited, and rejects foreign browser origins', async () => {
   const f = await fixture();
   try {

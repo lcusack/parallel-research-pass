@@ -31,9 +31,15 @@ export function createNativePass({ origin, fetch: rawFetch = globalThis.fetch, a
       active.show(active.notice);
     },
   });
+  const explicitApproval = {
+    ...prover,
+    // Refresh only from verify_human, including when a cached proof is near expiry.
+    // A research request must not silently start and decline a new device attempt.
+    retry: (response, context) => active ? prover.retry(response, context) : undefined,
+  };
   // No payment method is installed here. Only the hosted sponsor can pay Parallel.
   const client = Mppx.create({
-    methods: [], identity: [prover], polyfill: false, fetch: transport,
+    methods: [], identity: [explicitApproval], polyfill: false, fetch: transport,
     // The sponsored hop negotiates identity only. Preserve a quota 402 as the
     // service's final response; payment happens solely on the server → Parallel hop.
     transport: { ...Transport.http(), isPaymentRequired: () => false },
@@ -83,14 +89,16 @@ export function createNativePass({ origin, fetch: rawFetch = globalThis.fetch, a
     return allowance();
   }
   async function research(question, requestId) {
+    const required = () => Object.assign(new Error('Run verify_human and complete World ID approval before researching.'), { code: 'verification_required' });
     if (active || !(await allowance()).verified) {
-      const error = new Error('Run verify_human and complete World ID approval before researching.');
-      error.code = 'verification_required'; throw error;
+      throw required();
     }
-    return decode(await send(origin + '/api/agent/research', {
+    const response = await send(origin + '/api/agent/research', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, requestId }),
       signal: AbortSignal.timeout(95000),
-    }));
+    });
+    if (response.status === 401) throw required();
+    return decode(response);
   }
   return { verify, check, allowance, research };
 }
