@@ -11,7 +11,7 @@ export function encryptedStore(db: D1Database, secret: string): Store.AtomicStor
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv);
     cipher.setAAD(Buffer.from(name));
-    const body = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
+    const body = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(value), 'utf8')), cipher.final()]);
     return Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64');
   };
   const open = (name: string, value: unknown): unknown => {

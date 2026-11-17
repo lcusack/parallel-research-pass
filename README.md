@@ -4,7 +4,7 @@ Verify with World ID, ask Parallel a research question, and inspect its MPP paym
 
 **[Open the public demo](https://parallel-research-pass.foundry-world.workers.dev)** · **[90-second walkthrough](https://parallel-research-pass.foundry-world.workers.dev/walkthrough)** · **[MCP configuration](mcp.json)**
 
-No invitation, API key, or user wallet is needed for sponsored research. This is an independent reference prototype; the allowance is funded by this demo and is not a Parallel promotion. The public page is published; hosted verification and payments are pending credential activation. The original local flow has completed a real World ID → Parallel → MPP transaction.
+No invitation, API key, or user wallet is needed for sponsored research. This is an independent reference prototype; the allowance is funded by this demo and is not a Parallel promotion. Hosted verification and sponsorship are enabled. The original local flow has completed a real World ID → Parallel → MPP transaction.
 
 ## Try in a browser
 
@@ -55,7 +55,7 @@ Selfie Check identifies an eligible account here; this prototype does not claim 
 
 ## Budget and payment behavior
 
-- **$1 total sponsorship budget**, including network fees. The dedicated hosted wallet is intended to receive $0.99, leaving room for the funding transfer’s fee. It has no access to the operator’s main wallet.
+- **$1 total sponsorship budget**, including network fees. The dedicated hosted wallet received $0.99; the funding transfer cost $0.000325 in network fees, for a total initial debit of $0.990325. It has no access to the operator’s main wallet.
 - At most **90 sponsored requests globally** and 10 per account. Each low-tier Parallel service charge is capped at $0.01; the wallet pays network fees too. Gas variation can exhaust the wallet before the call ceiling. There is no automatic refill.
 - Requests pin the production Parallel Responses endpoint, Tempo mainnet (4217), USDC.e (`0x20c000000000000000000000b9537d11c60e8b50`), and one-time charge intent. No provider API key is used.
 - One atomic ledger reservation covers the account, global cap, and request ID. Replaying a completed request returns its saved answer and receipt. Reusing its ID for another question is rejected.
@@ -91,7 +91,7 @@ This reference has no administrative UI, scheduled state deletion, automatic rec
 
 ## Validation and sources
 
-Nineteen automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, and CLI payment constraints. They do not spend funds.
+Twenty automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, and CLI payment constraints. They do not spend funds.
 
 The original local flow completed a real paid query on November 17, 2026. The allowance went from 10 to 9, and MCP replay returned the saved answer without another payment. The wallet delta was $0.010198: a $0.01 service charge plus network fees. Transaction reference: `0x1e0efee8b14c36625e8d569c872a36d30b3b8205924677cecbd46f0357cc2953`. This does not yet validate the newly hosted deployment.
 

@@ -10,9 +10,12 @@ type Pending = { id: string; url: string; userCode: string; expires: number; int
 type Session = { expires: number; attestation?: string; pending?: Pending; startingUntil?: number };
 const inputSchema = z.object({ question: z.string().trim().min(3).max(4000), requestId: z.uuid() });
 const cookieName = '__Host-research_pass';
-const json = (value: unknown, status = 200, headers: HeadersInit = {}) => Response.json(value, {
-  status, headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...headers },
-});
+const json = (value: unknown, status = 200, headers: HeadersInit = {}) => {
+  const outputHeaders = new Headers(headers);
+  outputHeaders.set('cache-control', 'no-store');
+  outputHeaders.set('x-content-type-options', 'nosniff');
+  return Response.json(value, { status, headers: outputHeaders });
+};
 
 async function jsonBody(request: Request) {
   const reader = request.body?.getReader();
@@ -42,9 +45,17 @@ async function limit(store: Store.AtomicStore, key: string, max: number, seconds
 }
 
 async function signingKey(env: Env): Promise<CryptoKeyPair> {
+  const jwk = (serialized: string): JsonWebKey => {
+    const value: JsonWebKey = JSON.parse(serialized);
+    if (value.kty !== 'OKP' || value.crv !== 'Ed25519') throw new TypeError('Expected an Ed25519 signing key');
+    // Node and Workers export different optional JWK `alg` labels for the same curve.
+    // The explicit import algorithm and curve validation keep the key pinned to Ed25519.
+    delete value.alg;
+    return value;
+  };
   return {
-    privateKey: await crypto.subtle.importKey('jwk', JSON.parse(env.ATTESTATION_PRIVATE_JWK), 'Ed25519', false, ['sign']),
-    publicKey: await crypto.subtle.importKey('jwk', JSON.parse(env.ATTESTATION_PUBLIC_JWK), 'Ed25519', true, ['verify']),
+    privateKey: await crypto.subtle.importKey('jwk', jwk(env.ATTESTATION_PRIVATE_JWK), 'Ed25519', false, ['sign']),
+    publicKey: await crypto.subtle.importKey('jwk', jwk(env.ATTESTATION_PUBLIC_JWK), 'Ed25519', true, ['verify']),
   };
 }
 
@@ -202,7 +213,7 @@ export default {
       return json({ error: 'not_found' }, 404);
     } catch (error) {
       if (error instanceof DemoError) return json({ error: error.code, message: error.message }, error.status);
-      console.error(JSON.stringify({ event: 'request_failed', path: url.pathname, type: error instanceof Error ? error.name : 'unknown' }));
+      console.error(JSON.stringify({ event: 'request_failed', path: url.pathname, type: error instanceof Error ? error.name : 'unknown', frames: error instanceof Error ? error.stack?.split('\n').slice(1, 6).map(line => line.trim()) : undefined }));
       return json({ error: 'temporarily_unavailable', message: 'The prototype is temporarily unavailable. Please try again later.' }, 503);
     }
   },
