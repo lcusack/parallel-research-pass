@@ -1,6 +1,6 @@
 {
   "name": "parallel-research-pass",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,7 @@
     "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "mcp": "node --env-file-if-exists=.env --import tsx src/mcp.ts",
     "cli": "node --env-file-if-exists=.env --import tsx src/cli.ts",
-    "test": "node --import tsx --test test/*.test.ts hosted/test/*.test.ts",
+    "test": "node --import tsx --test test/*.test.ts hosted/test/*.test.ts hosted/test/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:hosted": "tsc --noEmit -p hosted/tsconfig.json",
     "deploy": "wrangler deploy --config hosted/wrangler.jsonc",

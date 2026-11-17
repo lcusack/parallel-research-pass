@@ -36,20 +36,38 @@ Then ask:
 
 The tools are `verify_human`, `check_verification`, `research_allowance`, `research`, and `paid_research`. The agent should show you the exact approval URL and matching code, respect the polling interval, and reuse a research request’s UUID after an interruption. It must obtain approval before spending from your own wallet.
 
-The client stores a session credential in a private local file under `~/.local/state/parallel-research-pass`. Do not share that directory. To demonstrate another harness, use `RESEARCH_PASS_PROFILE=second-harness`. Separate profiles and browser sessions each require approval; signing in to the same World ID account shares its remaining allowance on this backend. Different OIDC app registrations do not share an allowance.
+The client uses `World.Client.prover` to answer Research Pass’s standard MPP identity challenge. Keep the MCP server connected during approval: the SDK polls in the background, and `check_verification` reports its progress. The client stores its short-lived, audience-bound attestation in a private local file under `~/.local/state/parallel-research-pass`. Do not share that directory. To demonstrate another harness, use `RESEARCH_PASS_PROFILE=second-harness`. Separate profiles and browser sessions each require approval; signing in to the same World ID account shares its remaining allowance on this backend. Different OIDC app registrations do not share an allowance.
 
 ## What the prototype demonstrates
 
 ```text
-Browser or agent
-  → World IdP device approval (Selfie Check minimum)
-  → signed, audience-bound MPP World ID attestation
+Agent → Research Pass: no identity proof
+  ← 401 + Identity-Attestation-Required: world-id;issuer="https://…"
+  → World.Client.prover: issuer device flow + human approval
+  → retry with signed, audience-bound Identity-Attestation
   → backend checks the account’s allowance
   → sponsored MPP charge to Parallel on Tempo
   → cited answer + receipt + remaining allowance
 ```
 
-The app is both an MPP identity-attestation issuer and the sponsor’s enforcement point. Parallel receives a standard paid MPP request; **Parallel does not consume the World ID attestation or grant the allowance itself**. Moving eligibility into a provider’s identity challenge is a next integration step.
+The hosted agent path exercises the challenge/prover flow from [mppx PR #1271](https://github.com/wevm/mppx/pull/1271), using the released `mppx@0.20.1` World ID extension. Research Pass is both the identity issuer and the sponsor’s enforcement point. **Parallel receives a standard paid MPP request; Research Pass consumes the World ID attestation and grants the allowance.** Provider-side World ID eligibility would require a Parallel integration.
+
+The browser retains its HttpOnly session flow and uses the same SDK issuer, verifier, account mapping, and allowance ledger.
+
+### Native identity protocol
+
+- `GET /api/agent/status` and `POST /api/agent/research` require an explicit `Identity-Attestation`. Missing or invalid proofs receive the SDK’s `401` and `Identity-Attestation-Required` header. These routes do not accept a browser cookie as identity.
+- `POST /world/device`, `POST /world/token`, and `GET /.well-known/jwks.json` expose the SDK issuer. Issuance accepts only this demo’s audience, enforces the Selfie Check minimum, and is rate-limited by IP and globally.
+- The MCP client pins both prover scope and trusted issuer to this demo’s HTTPS origin. It uses `Mppx.create({ identity: [World.Client.prover(…)], methods: [], polyfill: false })` for identity negotiation, with payment negotiation disabled on this sponsored hop. A quota `402` is returned to the agent as an allowance error. The agent transport has no payment method and cannot pay a challenge itself.
+- `verify_human` starts a challenged status request and returns the human approval link as soon as the SDK supplies it. The SDK performs polling and retries the status request. Only a later, explicit `research` call can consume a sponsored answer. `research_allowance` is passive and never launches approval.
+
+Inspect the challenge without signing in or spending:
+
+```sh
+curl -i https://parallel-research-pass.foundry-world.workers.dev/api/agent/status
+```
+
+The portable implementation is in `bin/native-pass.mjs`; the issuer and gate are in `hosted/src/worker.ts`.
 
 Selfie Check identifies an eligible account here; this prototype does not claim Orb-level uniqueness or require a fresh selfie for each answer. Signed proofs are checked for issuer, audience, expiry, type, and accepted authentication class. The live tests used an Orb account; Selfie Check acceptance is covered by signed-token and complete device-flow fixtures.
 
@@ -85,15 +103,15 @@ For your own deployment:
 5. Fund only that dedicated sponsor wallet within your approved budget. Set the call ceiling conservatively; the wallet balance is the hard spending limit. Deploy with `npm run deploy`.
 6. Update the frontend and MCP client defaults to your origin. Complete a real World ID approval and inspect one paid result before inviting testers.
 
-Attestations last one hour; sessions last one day. Session state, device handles, attestations, questions, answers, and the quota ledger are encrypted in D1 with HMAC-derived storage keys. The browser receives an HttpOnly session cookie; agents receive only the session credential needed for their own tools. World ID subjects, client secrets, private device handles, and sponsor keys are not returned in tool output. The app logs error categories rather than query bodies or tokens. Parallel receives submitted questions for research.
+Attestations last one hour; sessions last one day. Session state, device handles, attestations, questions, answers, and the quota ledger are encrypted in D1 with HMAC-derived storage keys. The browser receives an HttpOnly session cookie; agents privately retain the one-hour audience-bound attestation needed for their own requests. Existing installations need one fresh approval when upgrading from the earlier cookie-based client. An interrupted approval can be restarted; a completed attestation survives MCP restarts until expiry. World ID subjects, client secrets, private device handles, and sponsor keys are not returned in tool output. The app logs error categories rather than query bodies or tokens. Parallel receives submitted questions for research.
 
 This reference has no administrative UI, scheduled state deletion, automatic reconciliation, or production availability guarantee. Rotating identity/encryption keys or deleting D1 can reset or invalidate state; keep them stable during a demo.
 
 ## Validation and sources
 
-Twenty-two automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
+Twenty-six automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, native HTTP challenge/prover negotiation with background approval and credential reuse, shared browser/native replay, issuer audience and rate limits, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
 
-The public hosted MCP flow completed a real World ID approval and cited Parallel query on November 17, 2026. The allowance went from 10 to 9. The service charge was $0.01 and the confirmed Tempo network fee was $0.000178, for a total of $0.010178. Replaying the same request returned the identical saved answer and receipt with `reused: true`, kept 9 answers remaining, and left the sponsor balance unchanged at $0.979822. Transaction reference: `0x8d5e4473a7a9a2b5d5e038fe4295dd594acc944aba7e6f7d55f16c18ee1e6b23`.
+The earlier session-based hosted MCP flow completed a real World ID approval and cited Parallel query on November 17, 2026. The allowance went from 10 to 9. The service charge was $0.01 and the confirmed Tempo network fee was $0.000178, for a total of $0.010178. Replaying the same request returned the identical saved answer and receipt with `reused: true`, kept 9 answers remaining, and left the sponsor balance unchanged at $0.979822. Transaction reference: `0x8d5e4473a7a9a2b5d5e038fe4295dd594acc944aba7e6f7d55f16c18ee1e6b23`.
 
 The walkthrough illustrates the earlier completed local test recorded in [LOCAL.md](LOCAL.md). The newly hosted deployment has now also passed the live flow above.
 

@@ -8,7 +8,7 @@ const origin = 'https://demo.example';
 const env = { APP_ORIGIN: origin, ASSETS: { fetch: async () => new Response('<!doctype html><title>Research Pass</title>') } } as unknown as Env;
 
 test('unconfigured public backend fails closed before sessions, identity, or payment', async () => {
-  for (const path of ['/api/session', '/api/status', '/api/research']) {
+  for (const path of ['/api/session', '/api/status', '/api/research', '/api/agent/status', '/api/agent/research', '/world/device', '/world/token', '/.well-known/jwks.json']) {
     const response = await worker.fetch(new Request(origin + path), env);
     assert.equal(response.status, 503);
     assert.equal((await response.json() as { error: string }).error, 'activation_pending');

@@ -1,5 +1,6 @@
 import * as World from 'mppx/extensions/identity/world';
 import type { Store } from 'mppx';
+import { Status } from 'mppx/identity';
 import { z } from 'zod';
 import { acceptedAcr } from '../../src/policy.ts';
 import { encryptedStore, opaqueId } from './store.ts';
@@ -59,11 +60,13 @@ async function signingKey(env: Env): Promise<CryptoKeyPair> {
   };
 }
 
-export default {
+export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: typeof researchPayment } = {}) { return {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const issuerRoute = ['/world/device', '/world/token', '/.well-known/jwks.json'].includes(url.pathname);
+    const agentRoute = ['/api/agent/status', '/api/agent/research'].includes(url.pathname);
     if (url.pathname === '/auth/world/callback') return new Response('Parallel Research Pass uses device verification. Return to your agent or demo page to continue.', { headers: { 'content-type': 'text/plain', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' } });
-    if (!url.pathname.startsWith('/api/')) {
+    if (!url.pathname.startsWith('/api/') && !issuerRoute) {
       const response = await env.ASSETS.fetch(request);
       const headers = new Headers(response.headers);
       headers.set('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
@@ -75,12 +78,32 @@ export default {
     try {
       if (url.origin !== env.APP_ORIGIN) return json({ error: 'invalid_origin' }, 400);
       if (!['GET', 'POST'].includes(request.method)) return json({ error: 'method_not_allowed' }, 405);
-      if (request.method === 'POST' && request.headers.get('origin') !== env.APP_ORIGIN) return json({ error: 'invalid_origin' }, 403);
+      const suppliedOrigin = request.headers.get('origin');
+      // Native clients authenticate with an explicit proof, never an ambient cookie.
+      // Browser session mutations still require a same-origin Origin header.
+      if ((suppliedOrigin && suppliedOrigin !== env.APP_ORIGIN) || (request.method === 'POST' && !suppliedOrigin && !agentRoute && !issuerRoute)) return json({ error: 'invalid_origin' }, 403);
       if (!env.STATE_KEY || !env.WORLD_ID_CLIENT_SECRET || !env.SPONSOR_PRIVATE_KEY) {
         return json({ error: 'activation_pending', message: 'The public prototype is prepared. Verification and sponsored research will open after hosting setup is complete.' }, 503);
       }
       const store = encryptedStore(env.DB, env.STATE_KEY);
       const ip = opaqueId(env.STATE_KEY, request.headers.get('cf-connecting-ip') ?? 'local');
+      const issuer = World.Issuer.create({
+        url: env.APP_ORIGIN, clientId: env.WORLD_ID_CLIENT_ID, clientSecret: env.WORLD_ID_CLIENT_SECRET,
+        clientAuthentication: env.WORLD_ID_CLIENT_AUTH, worldIssuer: env.WORLD_ID_ISSUER,
+        signingKey: await signingKey(env), secretKey: env.STATE_KEY, store, acr: acceptedAcr,
+        audiences: [env.APP_ORIGIN], authorize: () => true,
+        limit: { key: () => ip, max: 8, window: 3600 }, ttl: 3600,
+        ...(dependencies.worldFetch && { fetch: dependencies.worldFetch }),
+      });
+      if (issuerRoute) {
+        if (url.pathname === '/world/device' && request.method === 'POST') await limit(store, 'start-global', 100, 3600);
+        const response = await issuer.handle(request);
+        if (!response) return json({ error: 'method_not_allowed' }, 405);
+        const headers = new Headers(response.headers);
+        headers.set('cache-control', 'no-store');
+        headers.set('x-content-type-options', 'nosniff');
+        return new Response(response.body, { status: response.status, headers });
+      }
       const cookie = request.headers.get('cookie')?.split(';').map(s => s.trim()).find(s => s.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
       let sessionKey = cookie && /^[a-f0-9]{64}$/.test(cookie) ? `session:${opaqueId(env.STATE_KEY, cookie)}` : null;
       let session = sessionKey ? await store.get(sessionKey) as Session | null : null;
@@ -97,16 +120,7 @@ export default {
         }
         return json({ ready: true, sourceUrl: env.SOURCE_URL }, 200, headers);
       }
-      if (!session || !sessionKey) return json({ error: 'session_required', message: 'Reload the demo to start a session.' }, 401);
-      const key = sessionKey;
-      const issuer = World.Issuer.create({
-        url: env.APP_ORIGIN, clientId: env.WORLD_ID_CLIENT_ID, clientSecret: env.WORLD_ID_CLIENT_SECRET,
-        clientAuthentication: env.WORLD_ID_CLIENT_AUTH, worldIssuer: env.WORLD_ID_ISSUER,
-        signingKey: await signingKey(env), secretKey: env.STATE_KEY, store, acr: acceptedAcr,
-        audiences: [env.APP_ORIGIN], authorize: () => true,
-        limit: { key: () => ip, max: 8, window: 3600 }, ttl: 3600,
-      });
-      // Issuer routes are called only in process. Device handles never go to browser/model output.
+      // Browser sessions call the same SDK issuer in process; agents use its public routes.
       const issuerFetch: typeof fetch = async (input, init) => {
         const req = new Request(input, init);
         if (new URL(req.url).origin !== env.APP_ORIGIN) throw new Error('Unexpected issuer');
@@ -120,14 +134,28 @@ export default {
         return result.status === 'valid' ? result.value : null;
       };
       const ledger = new LedgerService(store, Number(env.SPONSOR_CALL_CAP));
-      const status = async (value: Session) => {
-        const proof = await identity(value);
+      type Proof = NonNullable<Awaited<ReturnType<typeof identity>>>;
+      const proofStatus = async (proof: Proof | null) => {
         if (!proof) return { verified: false, sponsorship: '10 answers per World ID account while the shared demo budget lasts' };
         const account = opaqueId(env.STATE_KEY, JSON.stringify([proof.issuer, proof.subject]));
         return { verified: true, authenticationLevel: proof.acr?.includes('/orb') ? 'Orb' : 'Selfie Check', allowance: await ledger.allowance(account), servicePriceUsd: '0.01' };
       };
-      if (url.pathname === '/api/status' && request.method === 'GET') return json(await status(session));
-      if (url.pathname === '/api/verify/start' && request.method === 'POST') {
+      const status = async (value: Session) => proofStatus(await identity(value));
+      let agentProof: Proof | undefined;
+      if (agentRoute) {
+        const expected = url.pathname === '/api/agent/status' ? 'GET' : 'POST';
+        if (request.method !== expected) return json({ error: 'method_not_allowed' }, 405);
+        const result = await verifier.verify(request);
+        if (result.status !== 'valid') {
+          // Preserve the SDK's challenge verbatim: this drives World.Client.prover.
+          return json({ error: 'identity_' + result.status, message: result.reason }, Status.codes[result.status], result.headers);
+        }
+        agentProof = result.value;
+        if (url.pathname === '/api/agent/status') return json(await proofStatus(agentProof));
+      } else if (!session || !sessionKey) return json({ error: 'session_required', message: 'Reload the demo to start a session.' }, 401);
+      const key = sessionKey!;
+      if (session && url.pathname === '/api/status' && request.method === 'GET') return json(await status(session));
+      if (session && url.pathname === '/api/verify/start' && request.method === 'POST') {
         if (await identity(session)) return json(await status(session));
         await limit(store, `start-global`, 100, 3600);
         const now = Date.now();
@@ -149,7 +177,7 @@ export default {
         }
         return json({ status: 'approval_required', url: pending.url, userCode: pending.userCode, expiresAt: new Date(pending.expires).toISOString(), retryAfterSeconds: pending.interval });
       }
-      if (url.pathname === '/api/verify/check' && request.method === 'POST') {
+      if (session && url.pathname === '/api/verify/check' && request.method === 'POST') {
         const pending = await store.update<string, Pending | { wait: number } | null>(key, current => {
           const value = current as Session;
           if (!value.pending) return { op: 'noop', result: null };
@@ -185,8 +213,8 @@ export default {
           throw new DemoError('verification_ended', 'Verification was declined or expired. Start again when ready.', 401);
         }
       }
-      if (url.pathname === '/api/research' && request.method === 'POST') {
-        const proof = await identity(session);
+      if (['/api/research', '/api/agent/research'].includes(url.pathname) && request.method === 'POST') {
+        const proof = agentProof ?? (session ? await identity(session) : null);
         if (!proof) throw new DemoError('verification_required', 'Verify with World ID before researching.', 401);
         const parsed = inputSchema.safeParse(await jsonBody(request));
         if (!parsed.success) throw new DemoError('invalid_request', 'Enter a question (3–4000 characters) and a UUID request ID.', 400);
@@ -201,7 +229,7 @@ export default {
           return json({ ...saved, requestId, reused: true, allowance: await ledger.allowance(account) });
         }
         try {
-          const result = await researchPayment(env.SPONSOR_PRIVATE_KEY, question);
+          const result = await (dependencies.pay ?? researchPayment)(env.SPONSOR_PRIVATE_KEY, question);
           await store.put(`answer:${jobKey}`, result);
           await ledger.finish(jobKey, 'complete');
           return json({ ...result, requestId, reused: false, allowance: await ledger.allowance(account) });
@@ -217,4 +245,6 @@ export default {
       return json({ error: 'temporarily_unavailable', message: 'The prototype is temporarily unavailable. Please try again later.' }, 503);
     }
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env>; }
+
+export default createWorker();
