@@ -21,8 +21,6 @@ button:disabled { cursor: wait; opacity: .55; }
 .topbar { max-width: 1200px; margin: 0 auto; min-height: 88px; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
 .brand { display: inline-flex; align-items: center; gap: 13px; font-size: 18px; font-weight: 500; letter-spacing: -.5px; text-decoration: none; white-space: nowrap; }
 .demo-label { color: var(--muted); font-size: 13px; letter-spacing: 0; border-left: 1px solid #d8d8d8; padding-left: 13px; font-weight: 400; }
-.collaboration { font-size: 14px; color: #525252; margin: 0; white-space: nowrap; }
-.collaboration span { margin: 0 9px; color: #969696; }
 .page { width: min(100% - 48px, 704px); margin: 48px auto 0; }
 .intro { margin-bottom: 40px; }
 h1 { margin: 0 0 22px; font-size: clamp(42px, 5.7vw, 64px); line-height: 1.025; font-weight: 400; letter-spacing: -.055em; }
@@ -100,12 +98,11 @@ pre { font: 13px/1.8 'SFMono-Regular', Consolas, monospace; padding: 22px; backg
 blockquote { margin: 12px 0 24px; padding: 0 0 0 18px; border-left: 2px solid #ccc; font-size: 17px; line-height: 1.6; letter-spacing: -.2px; }
 .continue { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
 .continue h2 { font-size: 23px; }
-.demo-context { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--line); }
-.demo-context > p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
+.demo-context { margin-top: 36px; border-top: 1px solid var(--line); }
 .about summary { padding: 18px 0 0; }
 .about[open] summary { padding-bottom: 15px; }
 .about-content p { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 0 0 12px; }
-footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 30px 0 36px; font-size: 13px; color: var(--muted); }
+footer { display: flex; justify-content: flex-end; align-items: center; gap: 20px; padding: 30px 0 36px; font-size: 13px; color: var(--muted); }
 footer a { text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -114,7 +111,6 @@ footer a:hover { text-decoration: underline; }
   .topbar { padding: 22px 24px; min-height: 76px; }
   .brand { font-size: 17px; gap: 10px; }
   .demo-label { padding-left: 10px; font-size: 12px; }
-  .collaboration { display: none; }
   .page { margin-top: 32px; }
   h1 { font-size: clamp(38px, 9.2vw, 52px); letter-spacing: -.05em; }
   .intro { margin-bottom: 32px; }
