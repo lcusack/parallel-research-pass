@@ -52,7 +52,7 @@ Agent → Research Pass: no identity proof
 
 The hosted agent path exercises the challenge/prover flow from [mppx PR #1271](https://github.com/wevm/mppx/pull/1271), using the released `mppx@0.20.1` World ID extension. Research Pass is both the identity issuer and the sponsor’s enforcement point. **Parallel receives a standard paid MPP request; Research Pass consumes the World ID attestation and grants the allowance.** Provider-side World ID eligibility would require a Parallel integration.
 
-The browser retains its HttpOnly session flow and uses the same SDK issuer, verifier, account mapping, and allowance ledger.
+The browser retains its HttpOnly session flow and uses the same SDK issuer, verifier, account mapping, and allowance ledger. Starting verification renews an expired demo session. Temporary failures preserve the pending approval; expired links, incomplete approvals, and rejected identity proofs produce distinct messages.
 
 ### Native identity protocol
 
@@ -109,7 +109,7 @@ This reference has no administrative UI, scheduled state deletion, automatic rec
 
 ## Validation and sources
 
-Twenty-seven automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, native HTTP challenge/prover negotiation with background approval and credential reuse, explicit renewal of nearly expired credentials, shared browser/native replay, issuer audience and rate limits, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
+Thirty automated tests cover proof validation, a complete SDK device flow against a local RS256 IdP fixture, native HTTP challenge/prover negotiation with background approval and credential reuse, explicit renewal of nearly expired credentials, shared browser/native replay, issuer audience and rate limits, shared and concurrent quotas, replay/conflict handling, the global cap, uncertain payments, secure hosted session cookies and encrypted storage, renewal of expired browser sessions, accurate verification errors, recovery after an approval-time storage outage, Workers redirect handling, and CLI payment constraints. They do not spend funds.
 
 The earlier session-based hosted MCP flow completed a real World ID approval and cited Parallel query on November 17, 2026. The allowance went from 10 to 9. The service charge was $0.01 and the confirmed Tempo network fee was $0.000178, for a total of $0.010178. Replaying the same request returned the identical saved answer and receipt with `reused: true`, kept 9 answers remaining, and left the sponsor balance unchanged at $0.979822. Transaction reference: `0x8d5e4473a7a9a2b5d5e038fe4295dd594acc944aba7e6f7d55f16c18ee1e6b23`.
 

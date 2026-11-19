@@ -121,10 +121,23 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
         return json({ ready: true, sourceUrl: env.SOURCE_URL }, 200, headers);
       }
       // Browser sessions call the same SDK issuer in process; agents use its public routes.
+      let issuerFailure: string | undefined;
       const issuerFetch: typeof fetch = async (input, init) => {
         const req = new Request(input, init);
         if (new URL(req.url).origin !== env.APP_ORIGIN) throw new Error('Unexpected issuer');
-        return await issuer.handle(req) ?? new Response(null, { status: 404 });
+        const response = await issuer.handle(req) ?? new Response(null, { status: 404 });
+        if (new URL(req.url).pathname === '/world/token' && response.status === 400) {
+          const body = await response.clone().json() as { error?: string; error_description?: string };
+          // SDK-owned constant descriptions only. Never log tokens, handles, or upstream bodies.
+          const reasons: Record<string, string> = {
+            'The World ID authentication predates the attempt.': 'stale_authentication',
+            'The World ID authentication class is not accepted.': 'unsupported_authentication_level',
+            'World ID was not approved.': 'not_approved',
+            'The attempt expired.': 'expired',
+          };
+          issuerFailure = reasons[body.error_description ?? ''] ?? (body.error === 'access_denied' ? 'invalid_identity_token' : undefined);
+        }
+        return response;
       };
       const verifier = World.Server.verifier({ issuer: env.APP_ORIGIN, audience: env.APP_ORIGIN, keyResolver: issuer.keyResolver, acr: acceptedAcr, clockTolerance: 0 });
       const identity = async (value: Session) => {
@@ -196,6 +209,7 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
           if (result.status === 'approved') {
             const value = await store.update(key, current => {
               const value = current as Session;
+              if (value.pending?.id !== pending.id) return { op: 'noop', result: value };
               value.attestation = result.attestation; delete value.pending;
               return { op: 'set', value, result: value };
             });
@@ -208,9 +222,23 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
             return { op: 'set', value, result: undefined };
           });
           return json({ status: result.status, retryAfterSeconds: pending.interval + (result.status === 'slow_down' ? 5 : 0) });
-        } catch {
-          await store.update(key, current => { const value = current as Session; delete value.pending; return { op: 'set', value, result: undefined }; });
-          throw new DemoError('verification_ended', 'Verification was declined or expired. Start again when ready.', 401);
+        } catch (error) {
+          const code = error instanceof World.Client.WorldIdError ? error.code : undefined;
+          console.warn(JSON.stringify({ event: 'verification_failed', code: code === 'access_denied' || code === 'expired_token' ? code : 'retryable', reason: issuerFailure }));
+          if (code !== 'access_denied' && code !== 'expired_token') {
+            // Preserve the attempt: the SDK can return an already-issued attestation on retry.
+            return json({ status: 'unavailable', retryAfterSeconds: Math.max(5, pending.interval) });
+          }
+          await store.update(key, current => {
+            const value = current as Session;
+            if (value.pending?.id !== pending.id) return { op: 'noop', result: undefined };
+            delete value.pending; return { op: 'set', value, result: undefined };
+          });
+          if (code === 'expired_token') throw new DemoError('verification_expired', 'This World ID approval link expired. Start verification again for a fresh link.', 401);
+          if (issuerFailure === 'stale_authentication') throw new DemoError('verification_stale', 'World ID returned an older sign-in. Start verification again and complete a fresh sign-in in World ID.', 401);
+          if (issuerFailure === 'unsupported_authentication_level') throw new DemoError('verification_level', 'This World ID account needs Selfie Check or stronger verification.', 403);
+          if (issuerFailure === 'invalid_identity_token') throw new DemoError('verification_rejected', 'The World ID response could not be validated. Start a fresh verification.', 401);
+          throw new DemoError('verification_declined', 'World ID approval was not completed. Start verification again when ready.', 401);
         }
       }
       if (['/api/research', '/api/agent/research'].includes(url.pathname) && request.method === 'POST') {

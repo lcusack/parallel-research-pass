@@ -2,14 +2,14 @@ import { marked } from '/vendor/marked.esm.js';
 import DOMPurify from '/vendor/purify.es.mjs';
 
 const $ = id => document.getElementById(id);
-let verified = false, busy = false, pollTimer, receipt = '', remaining = 10, pendingRequest = null;
+let verified = false, busy = false, pollTimer, verificationGeneration = 0, receipt = '', remaining = 10, pendingRequest = null;
 const form = $('research-form'), submit = $('submit');
 
 function message(text = '', error = false) { $('message').hidden = !text; $('message').textContent = text; $('message').classList.toggle('error', error); }
 async function api(path, body) {
   const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const value = await response.json();
-  if (!response.ok) { const error = new Error(value.message || 'The request could not complete.'); error.code = value.error; throw error; }
+  if (!response.ok) { const error = new Error(value.message || 'The request could not complete.'); error.code = value.error; error.status = response.status; throw error; }
   return value;
 }
 function updateStatus(value) {
@@ -33,19 +33,30 @@ function updateStatus(value) {
   } else { submit.querySelector('span').textContent = 'Verify to unlock research'; submit.classList.remove('ready'); }
 }
 function setBusy(value) { busy = value; submit.disabled = value; $('question').disabled = value; }
-function nextPoll(seconds) { clearTimeout(pollTimer); pollTimer = setTimeout(checkVerification, Math.max(5, seconds || 5) * 1000); }
-async function checkVerification() {
+function nextPoll(seconds) { clearTimeout(pollTimer); const generation = verificationGeneration; pollTimer = setTimeout(() => checkVerification(generation), Math.max(5, seconds || 5) * 1000); }
+async function checkVerification(generation) {
   try {
     const value = await api('/api/verify/check', {});
+    if (generation !== verificationGeneration) return;
     if (value.verified) { updateStatus(value); message('World ID is connected. Your research allowance is ready.'); return; }
     if (!value.status) { $('verification').hidden = true; message('Verification expired. Start again when you’re ready.', true); return; }
     $('verification-detail').textContent = value.status === 'unavailable' ? 'World ID is temporarily unavailable. Waiting before checking again…' : 'Waiting for your approval…';
     nextPoll(value.retryAfterSeconds);
-  } catch (error) { $('verification').hidden = true; message(error.message, true); }
+  } catch (error) {
+    if (generation !== verificationGeneration) return;
+    if (error instanceof TypeError || error.status >= 500 || error.status === 429) {
+      $('verification-detail').textContent = 'Connection interrupted. Keeping your approval link and checking again…';
+      nextPoll(10); return;
+    }
+    $('verification').hidden = true; message(error.message, true);
+  }
 }
 async function startVerification() {
+  verificationGeneration++; clearTimeout(pollTimer);
   setBusy(true); message();
   try {
+    // A tab can outlive its one-day session. Renew before starting a new approval.
+    await api('/api/session');
     const value = await api('/api/verify/start', {});
     if (value.verified) { updateStatus(value); return; }
     $('user-code').textContent = value.userCode;

@@ -10,7 +10,7 @@ import { encryptedStore, opaqueId } from '../src/store.ts';
 import { createNativePass } from '../../bin/native-pass.mjs';
 
 const origin = 'https://demo.example';
-async function fixture() {
+async function fixture(options = {}) {
   const db = new DatabaseSync(':memory:');
   const keys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const rsa = await generateKeyPair('RS256', { extractable: true });
@@ -22,7 +22,10 @@ async function fixture() {
     WORLD_ID_ISSUER: 'https://auth.world.org', SPONSOR_PRIVATE_KEY: 'fixture', SPONSOR_CALL_CAP: '90',
     ATTESTATION_PRIVATE_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', keys.privateKey)),
     ATTESTATION_PUBLIC_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', keys.publicKey)),
-    DB: { prepare: sql => ({ bind: (...args) => ({ all: async () => ({ results: db.prepare(sql).all(...args) }) }) }) },
+    DB: { prepare: sql => ({ bind: (...args) => ({ all: async () => {
+      if (options.beforeQuery) options.beforeQuery(sql, args);
+      return { results: db.prepare(sql).all(...args) };
+    } }) }) },
   };
   let polls = 0, payments = 0, devices = 0;
   const worldFetch = async (input, init) => {
@@ -37,8 +40,9 @@ async function fixture() {
     if (path === '/keys') return Response.json({ keys: [jwk] });
     if (path === '/token') {
       polls++;
-      if (polls === 1) return Response.json({ error: 'authorization_pending' }, { status: 400 });
-      const idToken = await new SignJWT({ acr: World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
+      if (options.tokenError) return Response.json({ error: options.tokenError }, { status: 400 });
+      if (polls === 1 && !options.skipPending) return Response.json({ error: 'authorization_pending' }, { status: 400 });
+      const idToken = await new SignJWT({ acr: options.acr ?? World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) + (options.authTimeOffset ?? 0) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
       return Response.json({ id_token: idToken });
     }
     throw new Error('Unexpected World fixture path');
@@ -57,6 +61,70 @@ async function fixture() {
   const sign = overrides => Attestation.sign({ iss: origin, aud: origin, sub: 'fixture-human', type: 'world-id', acr: World.Constants.acr.selfie, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, jti: randomUUID(), ...overrides }, { key: keys });
   return { db, env, keys, fetch, sign, traces, counts: () => ({ payments, polls, devices }) };
 }
+
+async function browserFixture(options = {}) {
+  const f = await fixture(options);
+  const created = await f.fetch(origin + '/api/session');
+  const cookie = created.headers.get('set-cookie').split(';')[0];
+  const call = path => f.fetch(origin + path, { method: 'POST', headers: { origin, cookie }, body: '{}' });
+  const sessionKey = 'session:' + opaqueId(f.env.STATE_KEY, cookie.slice(cookie.indexOf('=') + 1));
+  return { ...f, cookie, call, sessionKey, store: encryptedStore(f.env.DB, f.env.STATE_KEY) };
+}
+
+test('browser verification distinguishes expiry, denial, stale proof and unsupported account level', async () => {
+  for (const [options, code, status] of [
+    [{ tokenError: 'expired_token' }, 'verification_expired', 401],
+    [{ tokenError: 'access_denied' }, 'verification_declined', 401],
+    [{ authTimeOffset: -7200 }, 'verification_stale', 401],
+    [{ acr: 'unverified' }, 'verification_level', 403],
+  ]) {
+    const f = await browserFixture({ skipPending: true, ...options });
+    try {
+      assert.equal((await f.call('/api/verify/start')).status, 200);
+      await new Promise(resolve => setTimeout(resolve, 1050));
+      const checked = await f.call('/api/verify/check');
+      assert.equal(checked.status, status);
+      assert.equal((await checked.json()).error, code);
+      const saved = await f.store.get(f.sessionKey);
+      assert.equal(saved.pending, undefined);
+      assert.equal(saved.attestation, undefined);
+      assert.equal(f.counts().payments, 0);
+    } finally { f.db.close(); }
+  }
+});
+
+test('a storage outage after browser approval never turns success into a false decline', async () => {
+  let failKey, failed = false;
+  const f = await browserFixture({ skipPending: true, beforeQuery: (sql, args) => {
+    if (failKey && args[0] === failKey && sql.includes('SELECT') && !failed) { failed = true; throw new Error('Fixture storage outage'); }
+  } });
+  try {
+    await f.call('/api/verify/start');
+    await new Promise(resolve => setTimeout(resolve, 1050));
+    failKey = opaqueId(f.env.STATE_KEY, 'public:ledger');
+    const first = await f.call('/api/verify/check');
+    assert.equal(first.status, 200);
+    assert.equal((await first.json()).status, 'unavailable');
+    const retry = await f.call('/api/verify/check');
+    assert.equal((await retry.json()).verified, true);
+    assert.equal(f.counts().polls, 1, 'the approved device code is not redeemed again');
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
+
+test('an expired browser session can be renewed before starting a fresh approval', async () => {
+  const f = await browserFixture();
+  try {
+    await f.store.put(f.sessionKey, { expires: Date.now() - 1 });
+    assert.equal((await f.call('/api/verify/start')).status, 401);
+    const renewed = await f.fetch(origin + '/api/session', { headers: { cookie: f.cookie } });
+    const cookie = renewed.headers.get('set-cookie').split(';')[0];
+    assert.notEqual(cookie, f.cookie);
+    const started = await f.fetch(origin + '/api/verify/start', { method: 'POST', headers: { origin, cookie }, body: '{}' });
+    assert.equal((await started.json()).status, 'approval_required');
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
 
 test('native identity gate returns SDK challenges and rejects bad proofs before any payment', async () => {
   const f = await fixture();
