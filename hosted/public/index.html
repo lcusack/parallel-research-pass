@@ -2,80 +2,112 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Verify with World ID, unlock a research allowance, and see real MPP payments to Parallel.">
-  <meta name="theme-color" content="#f5f4ee">
-  <title>Research Pass — World ID × Parallel × Tempo</title>
+  <meta name="description" content="Try Parallel research for free with World ID. An independent demo of verified-human access and MPP payments on Tempo.">
+  <meta name="theme-color" content="#ffffff">
+  <title>Research Pass — Free research for verified humans</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <header class="topbar wrap">
-    <a class="brand" href="/" aria-label="Research Pass home"><span class="brand-mark">✳</span> Research Pass</a>
-    <nav aria-label="Main navigation"><a href="/walkthrough">Watch walkthrough <span>↗</span></a><a href="https://github.com/lcusack/parallel-research-pass" target="_blank" rel="noopener noreferrer">View source <span>↗</span></a></nav>
+  <header class="topbar">
+    <a class="brand" href="/">Research Pass <span class="demo-label">Demo</span></a>
+    <p class="collaboration">World ID <span>×</span> Parallel <span>×</span> Tempo</p>
   </header>
-  <main class="wrap">
-    <div class="intro-row"><p class="eyebrow"><span class="live-dot"></span> A working identity + payments prototype</p><span class="partners">World ID <i>×</i> Parallel <i>×</i> Tempo</span></div>
-    <div class="layout">
-      <aside class="story">
-        <h1>Good research.<br> A human<br> behind it.</h1>
-        <p class="lead">Connect World ID to unlock <strong>10 sponsored research answers.</strong> Ask a question. Get sources. See the payment.</p>
-        <ol class="flow">
-          <li id="step-verify" class="current"><span class="step-number">01</span><div><strong>Verify with World ID</strong><p>Selfie Check level or higher.</p></div><span class="step-state" aria-hidden="true">↗</span></li>
-          <li id="step-research"><span class="step-number">02</span><div><strong>Research with Parallel</strong><p>Live web answers, with citations.</p></div><span class="step-state" aria-hidden="true">↗</span></li>
-          <li id="step-payment"><span class="step-number">03</span><div><strong>Settle through MPP</strong><p>Sponsored payments on Tempo.</p></div><span class="step-state" aria-hidden="true">↗</span></li>
-        </ol>
-        <div class="account-note"><span>↳</span><p><strong>One account. One allowance.</strong><br>Your remaining answers follow your World ID account across this demo’s agent sessions.</p></div>
-        <p class="smallprint">Independent reference prototype. The allowance is funded by this demo, subject to a small shared budget. Selfie Check is accepted; no Orb visit is required.</p>
-      </aside>
-      <section class="workspace" aria-label="Research workspace">
-        <div class="workspace-tabs" role="tablist" aria-label="Choose how to try the prototype">
-          <button id="browser-tab" role="tab" aria-selected="true" aria-controls="browser-panel">Try in your browser</button>
-          <button id="agent-tab" role="tab" aria-selected="false" aria-controls="agent-panel">Use with an agent <span>↗</span></button>
+  <main class="page">
+    <section class="intro" aria-labelledby="headline">
+      <h1 id="headline">Free research for<br>verified humans.</h1>
+      <p>Try up to 10 research answers from Parallel.<br class="wide-break"> Verify with World ID to get started.</p>
+    </section>
+    <section class="workspace" aria-label="Research workspace">
+      <div class="mode-row">
+        <div class="workspace-tabs" role="tablist" aria-label="Choose how to try Research Pass">
+          <button id="browser-tab" role="tab" aria-selected="true" aria-controls="browser-panel" tabindex="0">In your browser</button>
+          <button id="agent-tab" role="tab" aria-selected="false" aria-controls="agent-panel" tabindex="-1">With an agent</button>
         </div>
-        <div id="browser-panel" role="tabpanel" aria-labelledby="browser-tab">
-          <div class="workspace-top"><span class="eyebrow">Research workspace</span><span id="connection" class="status-pill">Not connected</span></div>
-          <form id="research-form">
-            <label for="question">What would you like to find out?</label>
-            <textarea id="question" rows="4" maxlength="4000" placeholder="Find Parallel’s latest product announcements and link to the official sources."></textarea>
-            <div class="suggestions" aria-label="Example questions"><button type="button" data-question="What does Parallel.ai do? Give a concise answer and cite its official website.">What does Parallel do?</button><button type="button" data-question="Find the official documentation for MPP identity hooks and summarize how a service requests an identity attestation.">Explore MPP identity</button></div>
-            <div id="verification" class="verification" hidden><div class="verification-top"><span class="live-dot pulse"></span><strong>Approve in World ID</strong></div><p>Open the link and confirm this code matches:</p><code id="user-code"></code><a id="verification-link" class="text-link" target="_blank" rel="noopener noreferrer">Open World ID ↗</a><p id="verification-detail" class="muted">Waiting for your approval…</p></div>
-            <div id="message" class="message" role="status" aria-live="polite" hidden></div>
-            <div class="action-row"><button id="submit" class="primary" type="submit"><span>Verify to unlock research</span><span aria-hidden="true">↗</span></button><span id="allowance" class="allowance">10 sponsored answers</span></div>
-            <p id="charge-note" class="charge-note">The demo pays Parallel. You don’t need a wallet, API key, or billing account.</p>
-          </form>
-          <section id="loading" class="loading" aria-live="polite" hidden><span class="spinner"></span><div><strong>Following the sources…</strong><p>Researching the live web and confirming the MPP payment.</p></div></section>
-          <section id="result" class="result" aria-label="Research answer" hidden>
-            <div class="result-heading"><span class="eyebrow">Your answer</span><span id="reused-label" class="saved-label" hidden>Saved result · no new payment</span></div>
-            <div id="answer" class="answer"></div>
-            <div id="sources" class="sources"></div>
-            <details class="receipt"><summary><span><span class="live-dot"></span> MPP payment confirmed</span><span>View receipt +</span></summary><dl><div><dt>Provider</dt><dd>Parallel</dd></div><div><dt>Network / asset</dt><dd>Tempo / USDC.e</dd></div><div><dt>Maximum service charge</dt><dd>$0.01 · sponsored</dd></div><div><dt>Transaction reference</dt><dd id="transaction" class="hash"></dd></div></dl><p>Network fees are additional and paid by the demo. A saved request returns its original answer and receipt.</p><button id="copy-receipt" class="text-link" type="button">Copy payment receipt ↗</button></details>
+        <span id="connection" class="connection" role="status">Not verified</span>
+      </div>
+      <div id="browser-panel" role="tabpanel" aria-labelledby="browser-tab">
+        <form id="research-form">
+          <label for="question">What would you like to know?</label>
+          <textarea id="question" rows="3" maxlength="4000" placeholder="Ask a question. Parallel will research the web and cite its sources."></textarea>
+          <div class="suggestions" aria-label="Example questions">
+            <button type="button" data-question="What does Parallel.ai do? Give a concise answer and cite its official website.">What does Parallel do?</button>
+            <button type="button" data-question="Find the official documentation for MPP identity hooks and summarize how a service requests an identity attestation.">How does MPP identity work?</button>
+          </div>
+          <section id="verification" class="verification" aria-label="World ID approval" hidden>
+            <h2>Verify with World ID</h2>
+            <p>Open World ID and check that this code matches.</p>
+            <code id="user-code"></code>
+            <a id="verification-link" class="primary" target="_blank" rel="noopener noreferrer">Open World ID</a>
+            <p id="verification-detail" class="secondary-text">Waiting for your approval…</p>
           </section>
-          <section id="continue" class="continue" hidden><h2>Keep researching with your own wallet</h2><p>The sponsored allowance has ended. You can call Parallel directly through MPP. Download your question, then run this command with a funded Tempo wallet.</p><button id="download-request" class="secondary" type="button">Download parallel-request.json ↓</button><pre>tempo request https://parallelmpp.dev/api/responses \
+          <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+          <div class="action-row">
+            <button id="submit" class="primary" type="submit"><span>Verify with World ID</span></button>
+            <span id="allowance" class="allowance">10 free answers</span>
+          </div>
+          <p id="charge-note" class="charge-note">Selfie Check or stronger. No wallet or API key needed.</p>
+        </form>
+        <section id="loading" class="loading" aria-live="polite" hidden>
+          <span class="spinner" aria-hidden="true"></span><div><strong>Researching your question</strong><p>Finding sources and confirming the sponsored payment.</p></div>
+        </section>
+        <section id="result" class="result" aria-label="Research answer" hidden>
+          <div class="result-heading"><h2>Answer</h2><span id="reused-label" class="saved-label" hidden>Saved answer · no new payment</span></div>
+          <div id="answer" class="answer"></div>
+          <div id="sources" class="sources" aria-label="Sources"></div>
+          <details class="receipt">
+            <summary>Sponsored payment receipt</summary>
+            <dl><div><dt>Provider</dt><dd>Parallel</dd></div><div><dt>Network / asset</dt><dd>Tempo / USDC.e</dd></div><div><dt>Service charge cap</dt><dd>$0.01 · paid by this demo</dd></div><div><dt>Transaction</dt><dd id="transaction" class="hash"></dd></div></dl>
+            <p>The demo also pays network fees. Replaying a saved request returns its original answer and receipt.</p>
+            <button id="copy-receipt" class="text-button" type="button">Copy receipt</button>
+          </details>
+        </section>
+        <section id="continue" class="continue" hidden>
+          <h2>Continue with your own wallet</h2><p>The sponsored allowance has ended. You can call Parallel directly with a funded Tempo wallet.</p>
+          <button id="download-request" class="secondary" type="button">Download your question</button>
+          <pre>tempo request https://parallelmpp.dev/api/responses \
   --request POST --header 'Content-Type: application/json' \
   --data @parallel-request.json --max-spend 0.01 \
   --network mainnet --payment-intent charge \
-  --payment-token USDC.e</pre><p class="smallprint">This is a real payment from your wallet. Network fees are additional. <a href="https://docs.parallel.ai/integrations/agentic-payments" target="_blank" rel="noopener noreferrer">Setup documentation ↗</a></p></section>
-          <div id="empty-state" class="empty-state"><span class="document-icon" aria-hidden="true">≡<span>↗</span></span><p>Your answer, sources, and payment receipt<br>will appear here.</p></div>
-        </div>
-        <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab" hidden>
-          <div class="workspace-top"><span class="eyebrow">The same allowance, in your agent</span><span class="status-pill">MCP · stdio</span></div>
-          <h2 class="agent-heading">Bring your research pass.</h2><p>Install the reference MCP client in a harness that supports stdio tools. The hosted backend handles verification and sponsored payments. No app credentials or wallet setup are needed.</p>
-          <p class="code-label">MCP server configuration</p><pre id="mcp-config">{
+  --payment-token USDC.e</pre>
+          <p>This spends from your wallet, with network fees additional. <a href="https://docs.parallel.ai/integrations/agentic-payments" target="_blank" rel="noopener noreferrer">Setup instructions</a></p>
+        </section>
+      </div>
+      <div id="agent-panel" role="tabpanel" aria-labelledby="agent-tab" hidden>
+        <h2>The same trial, in your agent.</h2>
+        <p>Add this MCP server to a compatible agent. Requires Node 22.22 or later.</p>
+        <pre id="mcp-config">{
   "mcpServers": {
     "research-pass": {
       "command": "npx",
-      "args": ["--yes", "--package", "github:lcusack/parallel-research-pass", "parallel-research-pass"]
+      "args": [
+        "--yes",
+        "--package",
+        "github:lcusack/parallel-research-pass",
+        "parallel-research-pass"
+      ]
     }
   }
-}</pre><button id="copy-config" class="secondary" type="button">Copy configuration ↗</button>
-          <p class="code-label">Then ask your agent</p><blockquote>Use Research Pass to verify my World ID, research what Parallel does, and show my remaining allowance.</blockquote>
-          <p>Browser and agent sessions require their own approval, then resolve to the same account allowance. The agent answers MPP’s World ID identity challenge and stores its short-lived attestation privately. Keep the MCP connection open while approving.</p><a class="text-link" href="https://github.com/lcusack/parallel-research-pass#try-with-an-agent" target="_blank" rel="noopener noreferrer">Installation and implementation notes ↗</a>
+}</pre>
+        <button id="copy-config" class="secondary" type="button">Copy configuration</button>
+        <p class="prompt-label">Then ask your agent:</p>
+        <blockquote>Use Research Pass to verify my World ID, research what Parallel does, and show my remaining allowance.</blockquote>
+        <p>Approve World ID in the agent too. Your remaining answers follow the same account across browser and agent sessions. Keep the MCP connection open during approval.</p>
+        <a class="text-link" href="https://github.com/lcusack/parallel-research-pass#try-with-an-agent" target="_blank" rel="noopener noreferrer">Installation details</a>
+      </div>
+    </section>
+    <div class="demo-context">
+      <p>Calls are sponsored by this independent demo, with a $1 shared budget.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <div class="about-content">
+          <p>World ID verifies eligibility. Parallel researches your question. This demo pays Parallel through MPP on Tempo, and you get the answer, sources, and payment receipt.</p>
+          <p>Each World ID account gets up to 10 answers while the shared budget lasts. Selfie Check or stronger is accepted. A provider could offer its own verified-human trial using the same flow.</p>
         </div>
-      </section>
+      </details>
     </div>
-    <section class="under-the-hood" aria-label="How it works"><div><span class="eyebrow">Under the hood</span><h2>Three useful primitives.<br> One complete request.</h2></div><div class="primitive"><span>Identity</span><h3>World ID</h3><p>Authenticates the account and unlocks its allowance. Verification uses the World IdP and MPP’s World ID attestation extension.</p></div><div class="primitive"><span>Research</span><h3>Parallel</h3><p>Returns an answer grounded in live web sources. This prototype uses the production Responses endpoint at its low reasoning tier.</p></div><div class="primitive"><span>Payment</span><h3>Tempo + MPP</h3><p>Settles the sponsored service charge per request. A successful response includes a payment receipt you can inspect.</p></div></section>
+    <footer><span>World ID × Parallel × Tempo</span><a href="https://github.com/lcusack/parallel-research-pass" target="_blank" rel="noopener noreferrer">View the code</a></footer>
   </main>
-  <footer class="wrap"><span>Research Pass / Reference prototype</span><div><a href="/walkthrough">90-second walkthrough ↗</a><a href="https://github.com/lcusack/parallel-research-pass" target="_blank" rel="noopener noreferrer">Code & architecture ↗</a></div></footer>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 Verify with World ID, ask Parallel a research question, and inspect its MPP payment on Tempo. The demo sponsors up to **10 answers per World ID account**, across browser and agent sessions, while a small shared budget lasts. Selfie Check or stronger is accepted.
 
-**[Open the public demo](https://parallel-research-pass.foundry-world.workers.dev)** · **[90-second walkthrough](https://parallel-research-pass.foundry-world.workers.dev/walkthrough)** · **[MCP configuration](mcp.json)**
+**[Open the public demo](https://parallel-research-pass.foundry-world.workers.dev)** · **[MCP configuration](mcp.json)**
 
 No invitation, API key, or user wallet is needed for sponsored research. This is an independent reference prototype; the allowance is funded by this demo and is not a Parallel promotion. Hosted verification and sponsorship are enabled and have completed a real World ID → Parallel → MPP transaction through the MCP client.
 
@@ -115,6 +115,5 @@ The earlier session-based hosted MCP flow completed a real World ID approval and
 
 The native challenge/prover upgrade also completed a real hosted MCP flow on November 17, 2026: the SDK handled the `401` challenge, World ID approval, and automatic retry with an attestation. It resolved to the existing account with 9 answers remaining; a new sponsored query reduced that to 8. The service charge plus network fee was $0.010031 ($0.01 + $0.000031). Replay returned the same saved answer and receipt with `reused: true`, kept 8 remaining, and left the balance unchanged at $0.969791. Transaction reference: `0x3f3ff9bcdb397d0b5deab5ea233875352fc71fbd2b140cf477153dc97a7df438`. This live approval used the same Orb account; the native device-flow fixture covers Selfie Check.
 
-The walkthrough illustrates the earlier completed local test recorded in [LOCAL.md](LOCAL.md). The newly hosted deployment has now also passed the live flow above.
 
 References: [Parallel agentic payments](https://docs.parallel.ai/integrations/agentic-payments), [Parallel Responses](https://docs.parallel.ai/responses-api/responses-quickstart), [World ID OIDC](https://auth.world.org/docs/guides/oidc), [MPP World ID extension](https://github.com/wevm/mppx/pull/1271).

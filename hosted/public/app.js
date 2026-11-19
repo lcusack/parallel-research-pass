@@ -14,23 +14,20 @@ async function api(path, body) {
 }
 function updateStatus(value) {
   verified = !!value.verified;
-  $('connection').textContent = verified ? `Connected · ${value.authenticationLevel}` : 'Not connected';
+  $('connection').textContent = verified ? `Verified · ${value.authenticationLevel}` : 'Not verified';
   $('connection').classList.toggle('connected', verified);
-  $('step-verify').classList.toggle('done', verified);
-  $('step-verify').classList.toggle('current', !verified);
-  $('step-research').classList.toggle('current', verified);
   if (verified) {
     remaining = value.allowance.remaining;
     $('allowance').textContent = `${remaining} of 10 answers left`;
-    submit.querySelector('span').textContent = 'Research this question';
+    submit.querySelector('span').textContent = 'Ask Parallel';
     submit.classList.add('ready');
-    $('charge-note').textContent = 'One sponsored answer · Parallel charge capped at $0.01 · the demo pays network fees.';
+    $('charge-note').textContent = 'Free to you. This demo covers the Parallel call and network fees.';
     $('verification').hidden = true;
     if (remaining === 0 || value.allowance.sponsorshipAvailable === false) {
       $('continue').hidden = false;
       message(remaining === 0 ? 'Your sponsored answers have been used.' : 'The shared demo sponsorship is currently used up.');
     }
-  } else { submit.querySelector('span').textContent = 'Verify to unlock research'; submit.classList.remove('ready'); }
+  } else { submit.querySelector('span').textContent = 'Verify with World ID'; submit.classList.remove('ready'); }
 }
 function setBusy(value) { busy = value; submit.disabled = value; $('question').disabled = value; }
 function nextPoll(seconds) { clearTimeout(pollTimer); const generation = verificationGeneration; pollTimer = setTimeout(() => checkVerification(generation), Math.max(5, seconds || 5) * 1000); }
@@ -38,7 +35,7 @@ async function checkVerification(generation) {
   try {
     const value = await api('/api/verify/check', {});
     if (generation !== verificationGeneration) return;
-    if (value.verified) { updateStatus(value); message('World ID is connected. Your research allowance is ready.'); return; }
+    if (value.verified) { updateStatus(value); message('You’re verified. Your free research answers are ready.'); return; }
     if (!value.status) { $('verification').hidden = true; message('Verification expired. Start again when you’re ready.', true); return; }
     $('verification-detail').textContent = value.status === 'unavailable' ? 'World ID is temporarily unavailable. Waiting before checking again…' : 'Waiting for your approval…';
     nextPoll(value.retryAfterSeconds);
@@ -69,7 +66,7 @@ async function startVerification() {
   finally { setBusy(false); }
 }
 function showResult(value) {
-  $('empty-state').hidden = true; $('result').hidden = false;
+  $('result').hidden = false;
   $('answer').innerHTML = DOMPurify.sanitize(marked.parse(value.answer), { ALLOWED_TAGS: ['p','h1','h2','h3','h4','strong','em','ul','ol','li','a','code','pre','blockquote','br','hr','table','thead','tbody','tr','th','td'], ALLOWED_ATTR: ['href','title'] });
   for (const a of $('answer').querySelectorAll('a')) {
     try { if (!['http:', 'https:'].includes(new URL(a.href).protocol)) a.removeAttribute('href'); }
@@ -81,12 +78,11 @@ function showResult(value) {
     let url; try { url = new URL(source.url); if (!['https:', 'http:'].includes(url.protocol)) continue; } catch { continue; }
     const link = document.createElement('a'); link.className = 'source-card'; link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
     const title = document.createElement('span'); title.textContent = source.title || url.hostname;
-    const arrow = document.createElement('b'); arrow.textContent = '↗'; link.append(title, arrow); $('sources').append(link);
+    link.append(title); $('sources').append(link);
   }
   receipt = value.payment.receipt;
   $('transaction').textContent = value.payment.reference || 'See full receipt';
   $('reused-label').hidden = !value.reused;
-  $('step-payment').classList.add('done'); $('step-research').classList.add('done');
   remaining = value.allowance.remaining; $('allowance').textContent = `${remaining} of 10 answers left`;
   if (remaining === 0 || !value.allowance.sponsorshipAvailable) $('continue').hidden = false;
 }
@@ -97,7 +93,7 @@ form.addEventListener('submit', async event => {
   if (question.length < 3) { message('Enter a research question first.', true); $('question').focus(); return; }
   if (pendingRequest && pendingRequest.question !== question) { message('The previous request has an uncertain outcome. Reload to check your allowance before intentionally asking a new question.', true); return; }
   pendingRequest ||= { question, requestId: crypto.randomUUID() };
-  setBusy(true); message(); $('loading').hidden = false; $('empty-state').hidden = true;
+  setBusy(true); message(); $('loading').hidden = false;
   try {
     const value = await api('/api/research', pendingRequest);
     showResult(value); pendingRequest = null;
@@ -109,9 +105,23 @@ form.addEventListener('submit', async event => {
   } finally { setBusy(false); $('loading').hidden = true; }
 });
 for (const button of document.querySelectorAll('[data-question]')) button.addEventListener('click', () => { if (!busy) { $('question').value = button.dataset.question; $('question').focus(); } });
-for (const which of ['browser','agent']) $(which + '-tab').addEventListener('click', () => {
-  for (const name of ['browser','agent']) { $(name + '-tab').setAttribute('aria-selected', String(name === which)); $(name + '-panel').hidden = name !== which; }
-});
+function selectMode(which) {
+  for (const name of ['browser','agent']) {
+    $(name + '-tab').setAttribute('aria-selected', String(name === which));
+    $(name + '-tab').tabIndex = name === which ? 0 : -1;
+    $(name + '-panel').hidden = name !== which;
+  }
+  $('connection').hidden = which === 'agent';
+}
+for (const which of ['browser','agent']) {
+  $(which + '-tab').addEventListener('click', () => selectMode(which));
+  $(which + '-tab').addEventListener('keydown', event => {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'browser' : event.key === 'End' ? 'agent' : which === 'browser' ? 'agent' : 'browser';
+    selectMode(next); $(next + '-tab').focus();
+  });
+}
 async function copy(text, button) { try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = 'Copied ✓'; setTimeout(() => button.textContent = old, 1800); } catch { message('Clipboard access is unavailable. Select and copy the text manually.', true); } }
 $('copy-config').addEventListener('click', () => copy($('mcp-config').textContent, $('copy-config')));
 $('copy-receipt').addEventListener('click', () => copy(receipt, $('copy-receipt')));
