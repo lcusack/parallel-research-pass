@@ -28,6 +28,7 @@ async function fixture(options = {}) {
     } }) }) },
   };
   let polls = 0, payments = 0, devices = 0;
+  const deviceFreshness = [];
   const worldFetch = async (input, init) => {
     const request = new Request(input, init);
     assert.equal(new URL(request.url).origin, env.WORLD_ID_ISSUER);
@@ -35,14 +36,21 @@ async function fixture(options = {}) {
     if (path === '/.well-known/openid-configuration') return Response.json({ issuer: env.WORLD_ID_ISSUER, device_authorization_endpoint: env.WORLD_ID_ISSUER + '/device', token_endpoint: env.WORLD_ID_ISSUER + '/token', jwks_uri: env.WORLD_ID_ISSUER + '/keys' });
     if (path === '/device') {
       devices++;
+      assert.match(request.headers.get('authorization'), /^Basic /);
+      deviceFreshness.push(new URLSearchParams(await request.text()).get('max_age'));
       return Response.json({ device_code: 'private-device-fixture', user_code: 'ABCD-EFGH', verification_uri: env.WORLD_ID_ISSUER + '/approve', expires_in: 30, interval: 1 });
     }
     if (path === '/keys') return Response.json({ keys: [jwk] });
     if (path === '/token') {
       polls++;
+      assert.match(request.headers.get('authorization'), /^Basic /);
+      const form = new URLSearchParams(await request.text());
+      assert.equal(form.get('grant_type'), 'urn:ietf:params:oauth:grant-type:device_code');
+      assert.equal(form.has('max_age'), false);
       if (options.tokenError) return Response.json({ error: options.tokenError }, { status: 400 });
       if (polls === 1 && !options.skipPending) return Response.json({ error: 'authorization_pending' }, { status: 400 });
-      const idToken = await new SignJWT({ acr: options.acr ?? World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) + (options.authTimeOffset ?? 0) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
+      const reusedSessionAge = options.reuseSession && deviceFreshness.at(-1) !== '0' ? -7200 : 0;
+      const idToken = await new SignJWT({ acr: options.acr ?? World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) + (options.authTimeOffset ?? reusedSessionAge) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
       return Response.json({ id_token: idToken });
     }
     throw new Error('Unexpected World fixture path');
@@ -59,7 +67,7 @@ async function fixture(options = {}) {
     return response;
   };
   const sign = overrides => Attestation.sign({ iss: origin, aud: origin, sub: 'fixture-human', type: 'world-id', acr: World.Constants.acr.selfie, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, jti: randomUUID(), ...overrides }, { key: keys });
-  return { db, env, keys, fetch, sign, traces, counts: () => ({ payments, polls, devices }) };
+  return { db, env, keys, fetch, sign, traces, counts: () => ({ payments, polls, devices }), freshness: () => deviceFreshness };
 }
 
 async function browserFixture(options = {}) {
@@ -70,6 +78,19 @@ async function browserFixture(options = {}) {
   const sessionKey = 'session:' + opaqueId(f.env.STATE_KEY, cookie.slice(cookie.indexOf('=') + 1));
   return { ...f, cookie, call, sessionKey, store: encryptedStore(f.env.DB, f.env.STATE_KEY) };
 }
+
+test('browser verification requests fresh World ID authentication when the human already has an older IdP session', async () => {
+  const f = await browserFixture({ reuseSession: true, skipPending: true });
+  try {
+    await f.call('/api/verify/start');
+    assert.deepEqual(f.freshness(), ['0']);
+    await new Promise(resolve => setTimeout(resolve, 1050));
+    const checked = await f.call('/api/verify/check');
+    assert.equal(checked.status, 200);
+    assert.equal((await checked.json()).verified, true);
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
 
 test('browser verification distinguishes expiry, denial, stale proof and unsupported account level', async () => {
   for (const [options, code, status] of [

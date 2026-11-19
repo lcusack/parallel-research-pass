@@ -6,6 +6,7 @@ import { acceptedAcr } from '../../src/policy.ts';
 import { encryptedStore, opaqueId } from './store.ts';
 import { DemoError, LedgerService } from './ledger.ts';
 import { researchPayment, type PaidResult } from './payment.ts';
+import { freshWorldDeviceFlow } from './world.ts';
 
 type Pending = { id: string; url: string; userCode: string; expires: number; interval: number; next: number };
 type Session = { expires: number; attestation?: string; pending?: Pending; startingUntil?: number };
@@ -93,7 +94,7 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
         signingKey: await signingKey(env), secretKey: env.STATE_KEY, store, acr: acceptedAcr,
         audiences: [env.APP_ORIGIN], authorize: () => true,
         limit: { key: () => ip, max: 8, window: 3600 }, ttl: 3600,
-        ...(dependencies.worldFetch && { fetch: dependencies.worldFetch }),
+        fetch: freshWorldDeviceFlow(env.WORLD_ID_ISSUER, dependencies.worldFetch),
       });
       if (issuerRoute) {
         if (url.pathname === '/world/device' && request.method === 'POST') await limit(store, 'start-global', 100, 3600);
