@@ -6,6 +6,7 @@ let verified = false, busy = false, pollTimer, verificationGeneration = 0, recei
 const form = $('research-form'), submit = $('submit');
 
 function message(text = '', error = false) { $('message').hidden = !text; $('message').textContent = text; $('message').classList.toggle('error', error); }
+function showVerification(pending) { $('verification').hidden = !pending; submit.closest('.action-row').hidden = pending; }
 async function api(path, body) {
   const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const value = await response.json();
@@ -22,7 +23,7 @@ function updateStatus(value) {
     submit.querySelector('span').textContent = 'Ask Parallel';
     submit.classList.add('ready');
     $('charge-note').textContent = 'Free to you. This demo covers the Parallel call and network fees.';
-    $('verification').hidden = true;
+    showVerification(false);
     if (remaining === 0 || value.allowance.sponsorshipAvailable === false) {
       $('continue').hidden = false;
       message(remaining === 0 ? 'Your sponsored answers have been used.' : 'The shared demo sponsorship is currently used up.');
@@ -36,7 +37,7 @@ async function checkVerification(generation) {
     const value = await api('/api/verify/check', {});
     if (generation !== verificationGeneration) return;
     if (value.verified) { updateStatus(value); message('You’re verified. Your free research answers are ready.'); return; }
-    if (!value.status) { $('verification').hidden = true; message('Verification expired. Start again when you’re ready.', true); return; }
+    if (!value.status) { showVerification(false); message('Verification expired. Start again when you’re ready.', true); return; }
     $('verification-detail').textContent = value.status === 'unavailable' ? 'World ID is temporarily unavailable. Waiting before checking again…' : 'Waiting for your approval…';
     nextPoll(value.retryAfterSeconds);
   } catch (error) {
@@ -45,7 +46,7 @@ async function checkVerification(generation) {
       $('verification-detail').textContent = 'Connection interrupted. Keeping your approval link and checking again…';
       nextPoll(10); return;
     }
-    $('verification').hidden = true; message(error.message, true);
+    showVerification(false); message(error.message, true);
   }
 }
 async function startVerification() {
@@ -60,7 +61,7 @@ async function startVerification() {
     const link = new URL(value.url);
     if (link.origin !== 'https://auth.world.org') throw new Error('Unexpected verification link.');
     $('verification-link').href = value.url;
-    $('verification').hidden = false;
+    showVerification(true);
     nextPoll(value.retryAfterSeconds);
   } catch (error) { message(error.message, true); }
   finally { setBusy(false); }
@@ -87,7 +88,7 @@ function showResult(value) {
   if (remaining === 0 || !value.allowance.sponsorshipAvailable) $('continue').hidden = false;
 }
 form.addEventListener('submit', async event => {
-  event.preventDefault(); if (busy) return;
+  event.preventDefault(); if (busy || !$('verification').hidden) return;
   if (!verified) { await startVerification(); return; }
   const question = $('question').value.trim();
   if (question.length < 3) { message('Enter a research question first.', true); $('question').focus(); return; }
