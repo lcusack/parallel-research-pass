@@ -6,3 +6,9 @@ export const acceptedAcr = [
   World.Constants.acr.selfie, World.Constants.acr.selfieFace,
   World.Constants.acr.orb, World.Constants.acr.orbFace,
 ] as const;
+
+export function authenticationClasses(policy = 'selfie-or-orb'): readonly string[] {
+  if (policy === 'selfie-or-orb') return acceptedAcr;
+  if (policy === 'selfie') return [World.Constants.acr.selfie, World.Constants.acr.selfieFace];
+  throw new Error('Unknown World ID account policy');
+}

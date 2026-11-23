@@ -17,6 +17,7 @@
   "vars": {
     "APP_ORIGIN": "https://parallel-research-pass.foundry-world.workers.dev",
     "WORLD_ID_ISSUER": "https://auth.world.org",
+    "WORLD_ID_POLICY": "selfie-or-orb",
     "SPONSOR_CALL_CAP": "90",
     "SOURCE_URL": "https://github.com/lcusack/parallel-research-pass"
   },
@@ -30,5 +31,29 @@
       "database_name": "parallel-research-pass",
       "database_id": "a431ed81-fe83-495f-af74-13afb2744082"
     }
-  ]
+  ],
+  "env": {
+    "staging": {
+      "name": "parallel-research-pass-staging",
+      "assets": {
+        "directory": ".staging-public",
+        "binding": "ASSETS",
+        "run_worker_first": true
+      },
+      "vars": {
+        "APP_ORIGIN": "https://parallel-research-pass-staging.foundry-world.workers.dev",
+        "WORLD_ID_ISSUER": "https://auth.worldcoin.dev",
+        "WORLD_ID_POLICY": "selfie",
+        "SPONSOR_CALL_CAP": "2",
+        "SOURCE_URL": "https://github.com/lcusack/parallel-research-pass"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "parallel-research-pass-staging",
+          "database_id": "5993da35-9c04-48a0-9128-faeead9ec17d"
+        }
+      ]
+    }
+  }
 }

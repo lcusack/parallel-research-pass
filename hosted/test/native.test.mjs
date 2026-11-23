@@ -19,7 +19,7 @@ async function fixture(options = {}) {
     APP_ORIGIN: origin, ASSETS: { fetch: async () => new Response('static') },
     STATE_KEY: randomBytes(32).toString('base64'), WORLD_ID_CLIENT_ID: 'fixture-client',
     WORLD_ID_CLIENT_SECRET: 'fixture', WORLD_ID_CLIENT_AUTH: 'client_secret_basic',
-    WORLD_ID_ISSUER: 'https://auth.world.org', SPONSOR_PRIVATE_KEY: 'fixture', SPONSOR_CALL_CAP: '90',
+    WORLD_ID_ISSUER: options.worldIssuer ?? 'https://auth.world.org', WORLD_ID_POLICY: options.policy ?? 'selfie-or-orb', SPONSOR_PRIVATE_KEY: 'fixture', SPONSOR_CALL_CAP: '90',
     ATTESTATION_PRIVATE_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', keys.privateKey)),
     ATTESTATION_PUBLIC_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', keys.publicKey)),
     DB: { prepare: sql => ({ bind: (...args) => ({ all: async () => {
@@ -29,6 +29,7 @@ async function fixture(options = {}) {
   };
   let polls = 0, payments = 0, devices = 0;
   const deviceFreshness = [];
+  const requestedClasses = [];
   const worldFetch = async (input, init) => {
     const request = new Request(input, init);
     assert.equal(new URL(request.url).origin, env.WORLD_ID_ISSUER);
@@ -37,7 +38,9 @@ async function fixture(options = {}) {
     if (path === '/device') {
       devices++;
       assert.match(request.headers.get('authorization'), /^Basic /);
-      deviceFreshness.push(new URLSearchParams(await request.text()).get('max_age'));
+      const form = new URLSearchParams(await request.text());
+      deviceFreshness.push(form.get('max_age'));
+      requestedClasses.push(JSON.parse(form.get('claims')).id_token.acr);
       return Response.json({ device_code: 'private-device-fixture', user_code: 'ABCD-EFGH', verification_uri: env.WORLD_ID_ISSUER + '/approve', expires_in: 30, interval: 1 });
     }
     if (path === '/keys') return Response.json({ keys: [jwk] });
@@ -50,7 +53,7 @@ async function fixture(options = {}) {
       if (options.tokenError) return Response.json({ error: options.tokenError }, { status: 400 });
       if (polls === 1 && !options.skipPending) return Response.json({ error: 'authorization_pending' }, { status: 400 });
       const reusedSessionAge = options.reuseSession && deviceFreshness.at(-1) !== '0' ? -7200 : 0;
-      const idToken = await new SignJWT({ acr: options.acr ?? World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) + (options.authTimeOffset ?? reusedSessionAge) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
+      const idToken = await new SignJWT({ acr: options.acr ?? World.Constants.acr.selfie, amr: ['world_id'], auth_time: Math.floor(Date.now() / 1000) + (options.authTimeOffset ?? reusedSessionAge) }).setProtectedHeader({ alg: 'RS256', kid: jwk.kid }).setIssuer(options.tokenIssuer ?? env.WORLD_ID_ISSUER).setAudience(env.WORLD_ID_CLIENT_ID).setSubject('private-world-subject').setIssuedAt().setExpirationTime('5m').sign(rsa.privateKey);
       return Response.json({ id_token: idToken });
     }
     throw new Error('Unexpected World fixture path');
@@ -67,7 +70,7 @@ async function fixture(options = {}) {
     return response;
   };
   const sign = overrides => Attestation.sign({ iss: origin, aud: origin, sub: 'fixture-human', type: 'world-id', acr: World.Constants.acr.selfie, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, jti: randomUUID(), ...overrides }, { key: keys });
-  return { db, env, keys, fetch, sign, traces, counts: () => ({ payments, polls, devices }), freshness: () => deviceFreshness };
+  return { db, env, keys, fetch, sign, traces, counts: () => ({ payments, polls, devices }), freshness: () => deviceFreshness, requestedClasses: () => requestedClasses };
 }
 
 async function browserFixture(options = {}) {
@@ -88,6 +91,47 @@ test('browser verification requests fresh World ID authentication when the human
     const checked = await f.call('/api/verify/check');
     assert.equal(checked.status, 200);
     assert.equal((await checked.json()).verified, true);
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
+
+test('staging requires the Selfie credential through the SDK device flow and refuses Orb or production tokens', async () => {
+  for (const [options, expected] of [
+    [{ acr: World.Constants.acr.selfie }, 200],
+    [{ acr: World.Constants.acr.selfieFace }, 200],
+    [{ acr: World.Constants.acr.orb }, 403],
+    [{ acr: World.Constants.acr.orbFace }, 403],
+    [{ tokenIssuer: 'https://auth.world.org' }, 401],
+  ]) {
+    const f = await browserFixture({ policy: 'selfie', worldIssuer: 'https://auth.worldcoin.dev', skipPending: true, ...options });
+    try {
+      const started = await f.call('/api/verify/start');
+      assert.equal(started.status, 200);
+      assert.match((await started.json()).url, /^https:\/\/auth\.worldcoin\.dev\//);
+      assert.deepEqual(f.requestedClasses(), [{ essential: true, values: [World.Constants.acr.selfie, World.Constants.acr.selfieFace] }]);
+      assert.deepEqual(f.freshness(), ['0']);
+      await new Promise(resolve => setTimeout(resolve, 1050));
+      const checked = await f.call('/api/verify/check');
+      assert.equal(checked.status, expected);
+      if (expected === 200) {
+        const status = await checked.json();
+        assert.equal(status.verified, true);
+        assert.equal(status.authenticationLevel, 'Proof of Presence (Selfie Check)');
+      } else assert.equal((await f.store.get(f.sessionKey)).attestation, undefined);
+      assert.equal(f.counts().payments, 0);
+    } finally { f.db.close(); }
+  }
+});
+
+test('staging browser and agent gates both refuse an Orb-only attestation', async () => {
+  const f = await browserFixture({ policy: 'selfie', worldIssuer: 'https://auth.worldcoin.dev' });
+  try {
+    const attestation = await f.sign({ acr: World.Constants.acr.orb });
+    await f.store.put(f.sessionKey, { expires: Date.now() + 60000, attestation });
+    const status = await f.fetch(origin + '/api/status', { headers: { cookie: f.cookie } });
+    assert.equal((await status.json()).verified, false);
+    const agent = await f.fetch(origin + '/api/agent/status', { headers: { 'identity-attestation': attestation } });
+    assert.equal(agent.status, 403);
     assert.equal(f.counts().payments, 0);
   } finally { f.db.close(); }
 });

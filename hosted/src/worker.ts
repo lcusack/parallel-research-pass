@@ -2,7 +2,7 @@ import * as World from 'mppx/extensions/identity/world';
 import type { Store } from 'mppx';
 import { Status } from 'mppx/identity';
 import { z } from 'zod';
-import { acceptedAcr } from '../../src/policy.ts';
+import { authenticationClasses } from '../../src/policy.ts';
 import { encryptedStore, opaqueId } from './store.ts';
 import { DemoError, LedgerService } from './ledger.ts';
 import { researchPayment, type PaidResult } from './payment.ts';
@@ -87,6 +87,7 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
         return json({ error: 'activation_pending', message: 'The public prototype is prepared. Verification and sponsored research will open after hosting setup is complete.' }, 503);
       }
       const store = encryptedStore(env.DB, env.STATE_KEY);
+      const acceptedAcr = authenticationClasses(env.WORLD_ID_POLICY);
       const ip = opaqueId(env.STATE_KEY, request.headers.get('cf-connecting-ip') ?? 'local');
       const issuer = World.Issuer.create({
         url: env.APP_ORIGIN, clientId: env.WORLD_ID_CLIENT_ID, clientSecret: env.WORLD_ID_CLIENT_SECRET,
@@ -152,7 +153,7 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
       const proofStatus = async (proof: Proof | null) => {
         if (!proof) return { verified: false, sponsorship: '10 answers per World ID account while the shared demo budget lasts' };
         const account = opaqueId(env.STATE_KEY, JSON.stringify([proof.issuer, proof.subject]));
-        return { verified: true, authenticationLevel: proof.acr?.includes('/orb') ? 'Orb' : 'Selfie Check', allowance: await ledger.allowance(account), servicePriceUsd: '0.01' };
+        return { verified: true, authenticationLevel: proof.acr?.includes('/orb') ? 'Orb' : env.WORLD_ID_POLICY === 'selfie' ? 'Proof of Presence (Selfie Check)' : 'Selfie Check', allowance: await ledger.allowance(account), servicePriceUsd: '0.01' };
       };
       const status = async (value: Session) => proofStatus(await identity(value));
       let agentProof: Proof | undefined;
@@ -237,7 +238,7 @@ export function createWorker(dependencies: { worldFetch?: typeof fetch; pay?: ty
           });
           if (code === 'expired_token') throw new DemoError('verification_expired', 'This World ID approval link expired. Start verification again for a fresh link.', 401);
           if (issuerFailure === 'stale_authentication') throw new DemoError('verification_stale', 'World ID returned an older sign-in. Start verification again and complete a fresh sign-in in World ID.', 401);
-          if (issuerFailure === 'unsupported_authentication_level') throw new DemoError('verification_level', 'This World ID account needs Selfie Check or stronger verification.', 403);
+          if (issuerFailure === 'unsupported_authentication_level') throw new DemoError('verification_level', env.WORLD_ID_POLICY === 'selfie' ? 'Use the staging Proof of Presence (Selfie Check) credential. An Orb credential alone does not satisfy this test.' : 'This World ID account needs Selfie Check or stronger verification.', 403);
           if (issuerFailure === 'invalid_identity_token') throw new DemoError('verification_rejected', 'The World ID response could not be validated. Start a fresh verification.', 401);
           throw new DemoError('verification_declined', 'World ID approval was not completed. Start verification again when ready.', 401);
         }

@@ -13,7 +13,9 @@
     "test": "node --import tsx --test test/*.test.ts hosted/test/*.test.ts hosted/test/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:hosted": "tsc --noEmit -p hosted/tsconfig.json",
-    "deploy": "wrangler deploy --config hosted/wrangler.jsonc",
+    "deploy": "wrangler deploy --config hosted/wrangler.jsonc --env=",
+    "build:staging": "node scripts/build-staging.mjs",
+    "deploy:staging": "npm run build:staging && wrangler deploy --config hosted/wrangler.jsonc --env staging",
     "dev:hosted": "wrangler dev --config hosted/wrangler.jsonc",
     "types:hosted": "wrangler types hosted/worker-configuration.d.ts --config hosted/wrangler.jsonc"
   },

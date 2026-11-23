@@ -1,10 +1,14 @@
 node_modules/
 .env
+.env.*
+!.env.*.example
 data/
 *.log
 .wrangler/
 .dev.vars
 .secrets.json
+.secrets.*.json
+hosted/.staging-public/
 hosted/worker-configuration.d.ts
 hosted/source.zip
 sharing/*.zip
