@@ -136,6 +136,19 @@ test('staging browser and agent gates both refuse an Orb-only attestation', asyn
   } finally { f.db.close(); }
 });
 
+test('native prover accepts the staging approval origin and obtains a Selfie attestation', async () => {
+  const f = await fixture({ policy: 'selfie', worldIssuer: 'https://auth.worldcoin.dev', skipPending: true });
+  try {
+    const client = createNativePass({ origin, fetch: f.fetch, approvalOrigin: f.env.WORLD_ID_ISSUER });
+    const approval = await client.verify();
+    assert.equal(approval.status, 'approval_required');
+    assert.match(approval.url, /^https:\/\/auth\.worldcoin\.dev\//);
+    for (let i = 0; i < 60 && !(await client.check()).verified; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await client.allowance()).authenticationLevel, 'Proof of Presence (Selfie Check)');
+    assert.equal(f.counts().payments, 0);
+  } finally { f.db.close(); }
+});
+
 test('browser verification distinguishes expiry, denial, stale proof and unsupported account level', async () => {
   for (const [options, code, status] of [
     [{ tokenError: 'expired_token' }, 'verification_expired', 401],

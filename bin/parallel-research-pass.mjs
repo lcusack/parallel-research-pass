@@ -24,7 +24,9 @@ function saveAttestation(value) {
   writeFileSync(temp, JSON.stringify({ attestation: value }), { mode: 0o600, flag: 'wx' });
   renameSync(temp, statePath);
 }
-const pass = createNativePass({ origin: base.origin, attestation, onAttestation: saveAttestation });
+const pass = createNativePass({ origin: base.origin, attestation, onAttestation: saveAttestation,
+  approvalOrigin: process.env.RESEARCH_PASS_WORLD_ID_ISSUER || 'https://auth.world.org',
+});
 const run = promisify(execFile);
 
 async function paidResearch(question, requestId) {

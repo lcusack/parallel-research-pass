@@ -20,8 +20,12 @@ html = html.replace(/(<pre id="mcp-config">)([\s\S]*?)(<\/pre>)/, (_, start, tex
   const config = JSON.parse(text);
   config.mcpServers['research-pass'].env = {
     RESEARCH_PASS_URL: 'https://parallel-research-pass-staging.foundry-world.workers.dev',
+    RESEARCH_PASS_WORLD_ID_ISSUER: 'https://auth.worldcoin.dev',
   };
   return start + JSON.stringify(config, null, 2) + end;
 });
 writeFileSync(path, html);
+const appPath = resolve(output, 'app.js');
+const app = readFileSync(appPath, 'utf8').replace("link.origin !== 'https://auth.world.org'", "link.origin !== 'https://auth.worldcoin.dev'");
+writeFileSync(appPath, app);
 console.log('Built separate staging assets.');
