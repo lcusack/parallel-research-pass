@@ -21,7 +21,7 @@ if (!existsSync(path)) {
 chmodSync(path, 0o600);
 const secrets = JSON.parse(readFileSync(path, 'utf8'));
 const account = privateKeyToAccount(secrets.SPONSOR_PRIVATE_KEY);
-console.log(JSON.stringify({ environment: staging ? 'staging' : 'production', sponsorWallet: account.address, network: 'tempo-mainnet', maximumFundingUsd: staging ? '0.05' : '0.99' }));
+console.log(JSON.stringify({ environment: staging ? 'staging' : 'production', sponsorWallet: account.address, network: 'tempo-mainnet', maximumFundingUsd: staging ? '0.15' : '0.99' }));
 if (process.argv.includes('--upload')) {
   const clientId = process.env.WORLD_ID_CLIENT_ID;
   const secret = process.env.WORLD_ID_CLIENT_SECRET;
