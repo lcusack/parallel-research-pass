@@ -27,3 +27,22 @@ test('hosted replay is cached, changed input is rejected, and unknown outcomes c
   await assert.rejects(ledger.reserve('account', 'unknown-job', 'fingerprint'), { code: 'outcome_unknown' });
   assert.equal((await ledger.allowance('account')).used, 2);
 });
+
+test('raising the shared cap restores sponsorship without resetting account usage or prior jobs', async () => {
+  const store = Store.memory();
+  const initial = new LedgerService(store, 2);
+  for (let i = 0; i < 2; i++) {
+    await initial.reserve('account', `job-${i}`, 'fingerprint');
+    await initial.finish(`job-${i}`, 'complete');
+  }
+  assert.deepEqual(await initial.allowance('account'), { total: 10, used: 2, remaining: 8, sponsorshipAvailable: false });
+  const increased = new LedgerService(store, 4);
+  assert.deepEqual(await increased.allowance('account'), { total: 10, used: 2, remaining: 8, sponsorshipAvailable: true });
+  assert.equal(await increased.reserve('account', 'job-0', 'fingerprint'), 'cached');
+  for (let i = 2; i < 4; i++) {
+    await increased.reserve('account', `job-${i}`, 'fingerprint');
+    await increased.finish(`job-${i}`, 'complete');
+  }
+  assert.deepEqual(await increased.allowance('account'), { total: 10, used: 4, remaining: 6, sponsorshipAvailable: false });
+  await assert.rejects(increased.reserve('account', 'job-4', 'fingerprint'), { code: 'sponsor_budget_exhausted' });
+});

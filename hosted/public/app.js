@@ -2,11 +2,24 @@ import { marked } from '/vendor/marked.esm.js';
 import DOMPurify from '/vendor/purify.es.mjs';
 
 const $ = id => document.getElementById(id);
-let verified = false, busy = false, pollTimer, verificationGeneration = 0, receipt = '', remaining = 10, pendingRequest = null;
+let verified = false, busy = false, pollTimer, verificationGeneration = 0, receipt = '', remaining = 10, sponsorshipAvailable = true, pendingRequest = null;
 const form = $('research-form'), submit = $('submit');
 
 function message(text = '', error = false) { $('message').hidden = !text; $('message').textContent = text; $('message').classList.toggle('error', error); }
 function showVerification(pending) { $('verification').hidden = !pending; submit.closest('.action-row').hidden = pending; }
+function updateAllowance(allowance) {
+  remaining = allowance.remaining;
+  sponsorshipAvailable = allowance.sponsorshipAvailable !== false;
+  const paused = remaining === 0 || !sponsorshipAvailable;
+  const reason = remaining === 0 ? 'You’ve used all 10 sponsored answers for this account.' : `The demo’s shared sponsorship limit has been reached. You still have ${remaining} of 10 answers in your personal allowance.`;
+  $('allowance').textContent = `${remaining} of 10 answers left`;
+  $('continue').hidden = !paused;
+  $('continue-detail').textContent = reason + ' You can optionally continue with your own funded Tempo wallet.';
+  $('charge-note').textContent = paused ? 'Free research is paused. Using your own wallet below is optional.' : 'Free to you. This demo covers the Parallel call and network fees.';
+  submit.querySelector('span').textContent = paused ? 'Free research paused' : 'Ask Parallel';
+  message(paused ? reason : '');
+  setBusy(busy);
+}
 async function api(path, body) {
   const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const value = await response.json();
@@ -18,25 +31,18 @@ function updateStatus(value) {
   $('connection').textContent = verified ? `Verified · ${value.authenticationLevel}` : 'Not verified';
   $('connection').classList.toggle('connected', verified);
   if (verified) {
-    remaining = value.allowance.remaining;
-    $('allowance').textContent = `${remaining} of 10 answers left`;
-    submit.querySelector('span').textContent = 'Ask Parallel';
     submit.classList.add('ready');
-    $('charge-note').textContent = 'Free to you. This demo covers the Parallel call and network fees.';
     showVerification(false);
-    if (remaining === 0 || value.allowance.sponsorshipAvailable === false) {
-      $('continue').hidden = false;
-      message(remaining === 0 ? 'Your sponsored answers have been used.' : 'The shared demo sponsorship is currently used up.');
-    }
+    updateAllowance(value.allowance);
   } else { submit.querySelector('span').textContent = 'Verify with World ID'; submit.classList.remove('ready'); }
 }
-function setBusy(value) { busy = value; submit.disabled = value; $('question').disabled = value; }
+function setBusy(value) { busy = value; submit.disabled = value || (verified && (remaining === 0 || !sponsorshipAvailable)); $('question').disabled = value; }
 function nextPoll(seconds) { clearTimeout(pollTimer); const generation = verificationGeneration; pollTimer = setTimeout(() => checkVerification(generation), Math.max(5, seconds || 5) * 1000); }
 async function checkVerification(generation) {
   try {
     const value = await api('/api/verify/check', {});
     if (generation !== verificationGeneration) return;
-    if (value.verified) { updateStatus(value); message('You’re verified. Your free research answers are ready.'); return; }
+    if (value.verified) { updateStatus(value); if (remaining > 0 && sponsorshipAvailable) message('You’re verified. Your free research answers are ready.'); return; }
     if (!value.status) { showVerification(false); message('Verification expired. Start again when you’re ready.', true); return; }
     $('verification-detail').textContent = value.status === 'unavailable' ? 'World ID is temporarily unavailable. Waiting before checking again…' : 'Waiting for your approval…';
     nextPoll(value.retryAfterSeconds);
@@ -84,8 +90,7 @@ function showResult(value) {
   receipt = value.payment.receipt;
   $('transaction').textContent = value.payment.reference || 'See full receipt';
   $('reused-label').hidden = !value.reused;
-  remaining = value.allowance.remaining; $('allowance').textContent = `${remaining} of 10 answers left`;
-  if (remaining === 0 || !value.allowance.sponsorshipAvailable) $('continue').hidden = false;
+  updateAllowance(value.allowance);
 }
 form.addEventListener('submit', async event => {
   event.preventDefault(); if (busy || !$('verification').hidden) return;
@@ -101,7 +106,8 @@ form.addEventListener('submit', async event => {
   } catch (error) {
     message(error.message, true);
     if (['busy','allowance_exhausted','sponsor_budget_exhausted','verification_required','invalid_request'].includes(error.code)) pendingRequest = null;
-    if (['allowance_exhausted','sponsor_budget_exhausted'].includes(error.code)) $('continue').hidden = false;
+    if (error.code === 'allowance_exhausted') updateAllowance({ remaining: 0, sponsorshipAvailable });
+    if (error.code === 'sponsor_budget_exhausted') updateAllowance({ remaining, sponsorshipAvailable: false });
     if (error.code === 'verification_required') updateStatus({ verified: false });
   } finally { setBusy(false); $('loading').hidden = true; }
 });

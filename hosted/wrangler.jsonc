@@ -44,7 +44,7 @@
         "APP_ORIGIN": "https://parallel-research-pass-staging.foundry-world.workers.dev",
         "WORLD_ID_ISSUER": "https://auth.worldcoin.dev",
         "WORLD_ID_POLICY": "selfie",
-        "SPONSOR_CALL_CAP": "2",
+        "SPONSOR_CALL_CAP": "10",
         "SOURCE_URL": "https://github.com/lcusack/parallel-research-pass"
       },
       "d1_databases": [

@@ -27,7 +27,7 @@ export class LedgerService {
         throw new DemoError('outcome_unknown', 'This request already started. Its answer or payment needs reconciliation before another attempt.');
       }
       if ((ledger.accounts[account] ?? 0) >= 10) throw new DemoError('allowance_exhausted', 'Your 10 sponsored answers have been used.', 402);
-      if (ledger.count >= this.cap) throw new DemoError('sponsor_budget_exhausted', 'The shared prototype sponsorship is used up.', 402);
+      if (ledger.count >= this.cap) throw new DemoError('sponsor_budget_exhausted', 'The demo’s shared sponsorship limit has been reached. Your personal allowance may still have answers remaining.', 402);
       if (ledger.active && ledger.active.until > Date.now()) throw new DemoError('busy', 'Another research request is finishing. Please try again in a few seconds.', 503);
       ledger.count++;
       ledger.accounts[account] = (ledger.accounts[account] ?? 0) + 1;
