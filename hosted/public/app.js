@@ -120,6 +120,7 @@ for (const which of ['browser','agent']) {
     if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
     event.preventDefault();
     const next = event.key === 'Home' ? 'browser' : event.key === 'End' ? 'agent' : which === 'browser' ? 'agent' : 'browser';
+    if ($(next + '-tab').hidden) return;
     selectMode(next); $(next + '-tab').focus();
   });
 }
